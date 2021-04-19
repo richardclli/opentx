@@ -152,9 +152,6 @@ class DateTimeWindow : public FormGroup {
       seconds->setDisplayHandler([](BitmapBuffer * dc, LcdFlags flags, int32_t value) {
         dc->drawNumber(FIELD_PADDING_LEFT, FIELD_PADDING_TOP, value, flags | LEADING0, 2);
       });
-
-      grid.nextLine();
-      getParent()->moveWindowsTop(top(), adjustHeight());
     }
 };
 
@@ -174,9 +171,9 @@ void RadioSetupPage::build(FormWindow * window)
 
   // Batt meter range - Range 3.0v to 16v
   new StaticText(window, grid.getLabelSlot(), STR_BATTERY_RANGE);
-  auto batMinEdit = new NumberEdit(window, grid.getFieldSlot(2, 0), -60 + 90, g_eeGeneral.vBatMax + 29 + 90, GET_SET_WITH_OFFSET(g_eeGeneral.vBatMin, 90), PREC1);
+  auto batMinEdit = new NumberEdit(window, grid.getFieldSlot(2, 0), -60 + 90, g_eeGeneral.vBatMax + 29 + 90, GET_SET_WITH_OFFSET(g_eeGeneral.vBatMin, 90), 0, PREC1);
   batMinEdit->setSuffix("V");
-  auto batMaxEdit = new NumberEdit(window, grid.getFieldSlot(2, 1), g_eeGeneral.vBatMin - 29 + 120, 40 + 120, GET_SET_WITH_OFFSET(g_eeGeneral.vBatMax, 120), PREC1);
+  auto batMaxEdit = new NumberEdit(window, grid.getFieldSlot(2, 1), g_eeGeneral.vBatMin - 29 + 120, 40 + 120, GET_SET_WITH_OFFSET(g_eeGeneral.vBatMax, 120), 0, PREC1);
   batMaxEdit->setSuffix("V");
   batMinEdit->setSetValueHandler([=](int32_t newValue) {
     g_eeGeneral.vBatMin= newValue - 90;
@@ -303,7 +300,7 @@ void RadioSetupPage::build(FormWindow * window)
 
     // Battery warning
     new StaticText(window, grid.getLabelSlot(true), STR_BATTERYWARNING);
-    edit = new NumberEdit(window, grid.getFieldSlot(), 30, 120, GET_SET_DEFAULT(g_eeGeneral.vBatWarn), PREC1);
+    edit = new NumberEdit(window, grid.getFieldSlot(), 30, 120, GET_SET_DEFAULT(g_eeGeneral.vBatWarn), 0, PREC1);
     edit->setSuffix("v");
     grid.nextLine();
 
@@ -413,7 +410,7 @@ void RadioSetupPage::build(FormWindow * window)
 
   // Audio language
   new StaticText(window, grid.getLabelSlot(), STR_VOICE_LANGUAGE);
-  auto choice = new Choice(window, grid.getFieldSlot(), nullptr, 0, DIM(languagePacks) - 2, GET_VALUE(currentLanguagePackIdx),
+  auto choice = new Choice(window, grid.getFieldSlot(), 0, DIM(languagePacks) - 2, GET_VALUE(currentLanguagePackIdx),
                            [](uint8_t newValue) {
                              currentLanguagePackIdx = newValue;
                              currentLanguagePack = languagePacks[currentLanguagePackIdx];
@@ -458,7 +455,7 @@ void RadioSetupPage::build(FormWindow * window)
 
   // RX channel order
   new StaticText(window, grid.getLabelSlot(), STR_RXCHANNELORD); // RAET->AETR
-  choice = new Choice(window, grid.getFieldSlot(), nullptr, 0, 4*3*2 - 1, GET_SET_DEFAULT(g_eeGeneral.templateSetup));
+  choice = new Choice(window, grid.getFieldSlot(), 0, 4*3*2 - 1, GET_SET_DEFAULT(g_eeGeneral.templateSetup));
   choice->setTextHandler([](uint8_t value) {
     char s[5];
     for (uint8_t i=0; i<4; i++) {
@@ -471,7 +468,7 @@ void RadioSetupPage::build(FormWindow * window)
 
   // Stick mode
   new StaticText(window, grid.getLabelSlot(), STR_MODE);
-  choice = new Choice(window, grid.getFieldSlot(), nullptr, 0, 3, GET_DEFAULT(g_eeGeneral.stickMode),
+  choice = new Choice(window, grid.getFieldSlot(), 0, 3, GET_DEFAULT(g_eeGeneral.stickMode),
                       [=](uint8_t newValue) {
                         pausePulses();
                         g_eeGeneral.stickMode = newValue;

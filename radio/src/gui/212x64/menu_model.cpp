@@ -63,7 +63,11 @@ uint8_t editNameCursorPos = 0;
 void editSingleName(coord_t x, coord_t y, const char * label, char *name, uint8_t size, event_t event, uint8_t active)
 {
   lcdDrawTextAlignedLeft(y, label);
+  TRACE("EDIT SINGLE NAME %s", name);
   editName(x, y, name, size, event, active);
 }
 
 uint8_t s_currIdx;
+uint8_t s_currIdxSubMenu;
+uint16_t s_currSrcRaw;
+uint16_t s_currScale;

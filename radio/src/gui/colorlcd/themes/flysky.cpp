@@ -27,11 +27,11 @@ const ZoneOption OPTIONS_THEME_DEFAULT[] = {
   { nullptr, ZoneOption::Bool }
 };
 
-class FlyskyTheme: public ThemeBase
+class FlyskyTheme: public OpenTxTheme
 {
   public:
     FlyskyTheme():
-      ThemeBase("FlySky", OPTIONS_THEME_DEFAULT)
+      OpenTxTheme("FlySky", OPTIONS_THEME_DEFAULT)
     {
       loadColors();
     }
@@ -296,7 +296,7 @@ class FlyskyTheme: public ThemeBase
     void load() const override
     {
       loadColors();
-      ThemeBase::load();
+      OpenTxTheme::load();
       if (!backgroundBitmap) {
         backgroundBitmap = BitmapBuffer::loadBitmap(getFilePath("background.png"));
       }
@@ -342,6 +342,15 @@ class FlyskyTheme: public ThemeBase
       }
     }
 
+    void drawTopLeftBitmap(BitmapBuffer * dc) const override
+    {
+      if (topleftBitmap) {
+        dc->drawBitmap(0, 0, topleftBitmap);
+        uint16_t width = topleftBitmap->width();
+        dc->drawSolidFilledRect(width, 0, LCD_W - width, MENU_HEADER_HEIGHT, MENU_BGCOLOR);
+      }
+    }
+
     void drawMenuBackground(BitmapBuffer * dc, uint8_t icon, const char * title) const override
     {
 //      if (topleftBitmap) {
@@ -362,7 +371,7 @@ class FlyskyTheme: public ThemeBase
       dc->drawSolidFilledRect(0, MENU_TITLE_TOP, LCD_W, MENU_TITLE_HEIGHT, TITLE_BGCOLOR); // the title line background
 //
       if (title) {
-        dc->drawText(MENUS_MARGIN_LEFT, MENU_TITLE_TOP, title, MENU_COLOR);
+        dc->drawText(MENUS_MARGIN_LEFT, MENU_TITLE_TOP + 2, title, MENU_COLOR);
       }
     }
 
@@ -439,6 +448,6 @@ BitmapBuffer * FlyskyTheme::currentMenuBackground = nullptr;
 FlyskyTheme flyskyTheme;
 
 #if defined(PCBFLYSKY)
-ThemeBase * defaultTheme = &flyskyTheme;
+OpenTxTheme * defaultTheme = &flyskyTheme;
 Theme * theme = &flyskyTheme;
 #endif

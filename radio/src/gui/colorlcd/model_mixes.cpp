@@ -131,11 +131,11 @@ class MixEditWindow : public Page {
           grid.nextLine();
         new TextButton(window, grid.getFieldSlot(4, i % 4), fm,
                        [=]() -> uint8_t {
-                         BFBIT_FLIP(mix->flightModes, bfBit<uint8_t >(i));
-                         SET_DIRTY();
-                         return !(bfSingleBitGet(mix->flightModes, i));
+                           BFBIT_FLIP(mix->flightModes, bfBit<uint8_t>(i));
+                           SET_DIRTY();
+                           return !(bfSingleBitGet(mix->flightModes, i));
                        },
-                       bfSingleBitGet(mix->flightModes, i) ? 0 : BUTTON_CHECKED);
+                       OPAQUE | (bfSingleBitGet(mix->flightModes, i) ? 0 : BUTTON_CHECKED));
       }
       grid.nextLine();
 
@@ -160,7 +160,7 @@ class MixEditWindow : public Page {
       edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
                             GET_DEFAULT(mix->delayUp),
                             SET_VALUE(mix->delayUp, newValue),
-                            PREC1);
+                            0, PREC1);
       edit->setSuffix("s");
       grid.nextLine();
 
@@ -169,7 +169,7 @@ class MixEditWindow : public Page {
       edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
                             GET_DEFAULT(mix->delayDown),
                             SET_VALUE(mix->delayDown, newValue),
-                            PREC1);
+                            0, PREC1);
       edit->setSuffix("s");
       grid.nextLine();
 
@@ -178,7 +178,7 @@ class MixEditWindow : public Page {
       edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
                             GET_DEFAULT(mix->speedUp),
                             SET_VALUE(mix->speedUp, newValue),
-                            PREC1);
+                            0, PREC1);
       edit->setSuffix("s");
       grid.nextLine();
 
@@ -187,7 +187,7 @@ class MixEditWindow : public Page {
       edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
                             GET_DEFAULT(mix->speedDown),
                             SET_VALUE(mix->speedDown, newValue),
-                            PREC1);
+                            0, PREC1);
       edit->setSuffix("s");
       grid.nextLine();
 
@@ -216,7 +216,7 @@ class MixEditWindow : public Page {
 
         case CURVE_REF_CUSTOM:
         {
-          auto choice = new Choice(curveParamField, rect, nullptr, -MAX_CURVES, MAX_CURVES, GET_SET_DEFAULT(line->curve.value));
+          auto choice = new Choice(curveParamField, rect, -MAX_CURVES, MAX_CURVES, GET_SET_DEFAULT(line->curve.value));
           choice->setTextHandler([](int value) {
               return getCurveString(value);
           });
@@ -237,7 +237,7 @@ class MixLineButton : public CommonInputOrMixButton {
       }
     }
 
-    bool isActive() override
+    bool isActive() const override
     {
       return isMixActive(index);
     }
@@ -306,6 +306,7 @@ void ModelMixesPage::rebuild(FormWindow * window, int8_t focusMixIndex)
 
 void ModelMixesPage::editMix(FormWindow * window, uint8_t channel, uint8_t mixIndex)
 {
+  Window::clearFocus();
   Window * editWindow = new MixEditWindow(channel, mixIndex);
   editWindow->setCloseHandler([=]() {
     rebuild(window, mixIndex);
@@ -317,8 +318,6 @@ void ModelMixesPage::build(FormWindow * window, int8_t focusMixIndex)
   FormGridLayout grid;
   grid.spacer(PAGE_PADDING);
   grid.setLabelWidth(66);
-
-  Window::clearFocus();
 
   const BitmapBuffer * const mixerMultiplexBitmap[] = {
     mixerSetupAddBitmap,
@@ -335,10 +334,10 @@ void ModelMixesPage::build(FormWindow * window, int8_t focusMixIndex)
       while (mixIndex < MAX_MIXERS && mix->srcRaw > 0 && mix->destCh == ch) {
         Button * button = new MixLineButton(window, grid.getFieldSlot(), mixIndex);
         if (focusMixIndex == mixIndex)
-          button->setFocus();
+          button->setFocus(SET_FOCUS_DEFAULT);
         button->setPressHandler([=]() -> uint8_t {
           button->bringToTop();
-          Menu * menu = new Menu();
+          Menu * menu = new Menu(window);
           menu->addLine(STR_EDIT, [=]() {
             editMix(window, ch, mixIndex);
           });
@@ -399,10 +398,10 @@ void ModelMixesPage::build(FormWindow * window, int8_t focusMixIndex)
     else {
       auto button = new TextButton(window, grid.getLabelSlot(), getSourceString(MIXSRC_CH1 + ch));
       if (focusMixIndex == mixIndex)
-        button->setFocus();
+        button->setFocus(SET_FOCUS_DEFAULT);
       button->setPressHandler([=]() -> uint8_t {
         button->bringToTop();
-        Menu * menu = new Menu();
+        Menu * menu = new Menu(window);
         menu->addLine(STR_EDIT, [=]() {
           insertMix(mixIndex, ch);
           editMix(window, ch, mixIndex);

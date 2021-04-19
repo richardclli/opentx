@@ -84,20 +84,10 @@ int zchar2str(char * dest, const char * src, int size)
   return size+1;
 }
 
-bool cmpStrWithZchar(const char * charString, const char * zcharString, int size)
-{
-  for (int i=0; i<size; i++) {
-    if (charString[i] != zchar2char(zcharString[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
 unsigned int effectiveLen(const char * str, unsigned int size)
 {
   while (size > 0) {
-    if (str[size-1] != ' ')
+    if (str[size-1] != ' ' && str[size-1] != '\0')
       return size;
     size--;
   }
@@ -137,9 +127,7 @@ char * strcat_zchar(char * dest, const char * name, uint8_t size, const char * d
       if (!len && dest[i])
         len = i+1;
       if (len) {
-        if (dest[i])
-          dest[i] = zchar2char(dest[i]);
-        else
+        if (!dest[i])
           dest[i] = '_';
       }
       i--;
@@ -171,7 +159,11 @@ char * strAppendStringWithIndex(char * dest, const char * s, int idx)
   return strAppendUnsigned(strAppend(dest, s), abs(idx));
 }
 
-char * getTimerString(char * dest, int32_t tme, uint8_t hours)
+constexpr int secondsPerDay = 24 * 3600;
+constexpr int secondsPer99Hours = 99*3600 + 59*60 + 59;
+constexpr int secondsPerYear = 365 * secondsPerDay;
+
+char * getTimerString(char * dest, int tme, uint8_t hours)
 {
   char * s = dest;
   div_t qr;
@@ -181,28 +173,63 @@ char * getTimerString(char * dest, int32_t tme, uint8_t hours)
     *s++ = '-';
   }
 
-  qr = div((int)tme, 60);
+  if (tme < secondsPerDay) {
+    qr = div((int) tme, 60);
 
-  if (hours) {
-    div_t qr2 = div(qr.quot, 60);
+    if (hours) {
+      div_t qr2 = div(qr.quot, 60);
+      *s++ = '0' + (qr2.quot / 10);
+      *s++ = '0' + (qr2.quot % 10);
+      *s++ = ':';
+      qr.quot = qr2.rem;
+    }
+
+    if (!hours && qr.quot > 99) {
+      *s++ = '0' + (qr.quot / 100);
+      qr.quot = qr.quot % 100;
+    }
+
+    *s++ = '0' + (qr.quot / 10);
+    *s++ = '0' + (qr.quot % 10);
+    *s++ = ':';
+    *s++ = '0' + (qr.rem / 10);
+    *s++ = '0' + (qr.rem % 10);
+    *s = '\0';
+  }
+  else if (tme < secondsPer99Hours) {
+    qr = div(tme, 3600);
+    div_t qr2 = div(qr.rem, 60);
+    *s++ = '0' + (qr.quot / 10);
+    *s++ = '0' + (qr.quot % 10);
+    *s++ = 'H';
     *s++ = '0' + (qr2.quot / 10);
     *s++ = '0' + (qr2.quot % 10);
-    *s++ = ':';
-    qr.quot = qr2.rem;
+    *s = '\0';
   }
-
-  if (!hours && qr.quot > 99) {
+  else if (tme < secondsPerYear) {
+    qr = div(tme, secondsPerDay);
+    div_t qr2 = div(qr.rem, 60);
     *s++ = '0' + (qr.quot / 100);
-    qr.quot = qr.quot % 100;
+    *s++ = '0' + (qr.quot / 10);
+    *s++ = '0' + (qr.quot % 10);
+    *s++ = 'D';
+    *s++ = '0' + (qr2.quot / 10);
+    *s++ = '0' + (qr2.quot % 10);
+    *s++ = 'H';
+    *s = '\0';
   }
-
-  *s++ = '0' + (qr.quot / 10);
-  *s++ = '0' + (qr.quot % 10);
-  *s++ = ':';
-  *s++ = '0' + (qr.rem / 10);
-  *s++ = '0' + (qr.rem % 10);
-  *s = '\0';
-
+  else {
+    qr = div(tme, secondsPerYear);
+    div_t qr2 = div(qr.rem, secondsPerDay);
+    *s++ = '0' + (qr.quot / 10);
+    *s++ = '0' + (qr.quot % 10);
+    *s++ = 'Y';
+    *s++ = 'Y';
+    *s++ = '0' + (qr2.quot / 10);
+    *s++ = '0' + (qr2.quot % 10);
+    *s++ = 'D';
+    *s = '\0';
+  }
   return dest;
 }
 
@@ -286,7 +313,7 @@ char * getSwitchName(char * dest, swsrc_t idx)
   }
   else {
     *dest++ = 'S';
-#if defined(PCBX7)
+#if defined(PCBX7) && !defined(RADIO_TX12)
     if (swinfo.quot >= 5)
         *dest++ = 'H' + swinfo.quot - 5;
       else if (swinfo.quot == 4)
@@ -332,7 +359,7 @@ char * getSwitchPositionName(char * dest, swsrc_t idx)
   if (idx <= SWSRC_LAST_SWITCH) {
     div_t swinfo = switchInfo(idx);
     s = getSwitchName(s, idx);
-    *s++ = "\200-\201"[swinfo.rem];
+    *s++ = (STR_CHAR_UP "-" STR_CHAR_DOWN)[swinfo.rem];
     *s = '\0';
   }
 #endif // PCBSKY9X
@@ -347,16 +374,9 @@ char * getSwitchPositionName(char * dest, swsrc_t idx)
   }
 #endif
 
-#if defined(PCBSKY9X)
-  else if (idx <= SWSRC_REa) {
-    getStringAtIndex(s, STR_VSWITCHES, IDX_TRIMS_IN_STR_VSWITCHES+idx-SWSRC_FIRST_TRIM);
-  }
-#else
   else if (idx <= SWSRC_LAST_TRIM) {
     getStringAtIndex(s, STR_VSWITCHES, IDX_TRIMS_IN_STR_VSWITCHES+idx-SWSRC_FIRST_TRIM);
   }
-#endif
-
   else if (idx <= SWSRC_LAST_LOGICAL_SWITCH) {
     *s++ = 'L';
     strAppendUnsigned(s, idx-SWSRC_FIRST_LOGICAL_SWITCH+1, 2);
@@ -392,7 +412,7 @@ char * getSourceString(char * dest, mixsrc_t idx)
   }
   else if (idx <= MIXSRC_LAST_INPUT) {
     idx -= MIXSRC_FIRST_INPUT;
-    *dest = '\314';
+    *dest = CHAR_INPUT;
     if (strlen(g_model.inputNames[idx])) {
       memset(dest + 1, 0, LEN_INPUT_NAME);
       strncpy(dest + 1, g_model.inputNames[idx], LEN_INPUT_NAME);
@@ -406,7 +426,7 @@ char * getSourceString(char * dest, mixsrc_t idx)
 #if defined(LUA_MODEL_SCRIPTS)
     div_t qr = div(idx-MIXSRC_FIRST_LUA, MAX_SCRIPT_OUTPUTS);
     if (qr.quot < MAX_SCRIPTS && qr.rem < scriptInputsOutputs[qr.quot].outputsCount) {
-      *dest++ = '\322';
+      *dest++ = CHAR_LUA;
       // *dest++ = '1'+qr.quot;
       strcpy(dest, scriptInputsOutputs[qr.quot].outputs[qr.rem].name);
     }
@@ -466,10 +486,10 @@ char * getSourceString(char * dest, mixsrc_t idx)
   else {
     idx -= MIXSRC_FIRST_TELEM;
     div_t qr = div(idx, 3);
-    dest[0] = '\321';
-    int pos = 1 + zchar2str(&dest[1], g_model.telemetrySensors[qr.quot].label, sizeof(g_model.telemetrySensors[qr.quot].label));
-    if (qr.rem) dest[pos++] = (qr.rem==2 ? '+' : '-');
-    dest[pos] = '\0';
+    dest[0] = CHAR_TELEMETRY;
+    char  * pos = strAppend(&dest[1], g_model.telemetrySensors[qr.quot].label, sizeof(g_model.telemetrySensors[qr.quot].label));
+    if (qr.rem) * pos = (qr.rem==2 ? '+' : '-');
+    * ++pos = '\0';
   }
 
   return dest;

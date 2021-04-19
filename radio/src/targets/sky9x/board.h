@@ -28,6 +28,8 @@
 #include "audio_driver.h"
 #include "../opentx_constants.h"
 
+#define CPU_FREQ                       36000000
+
 extern uint16_t ResetReason;
 
 #define BOOTLOADER_SIZE                0x8000
@@ -212,9 +214,11 @@ void calcConsumption();
 
 // Trainer driver
 #define SLAVE_MODE()                   (pwrCheck() == e_power_trainer)
-#define TRAINER_CONNECTED()            (PIOA->PIO_PDSR & PIO_PA8)
 void init_trainer_capture();
 void stop_trainer_capture();
+#define TRAINER_DETECT_GPIO             PIOA
+#define TRAINER_DETECT_GPIO_PIN         PIO_PA8
+#define TRAINER_CONNECTED()            (TRAINER_DETECT_GPIO->PIO_PDSR & TRAINER_DETECT_GPIO_PIN)
 
 // Write Flash driver
 #define FLASH_PAGESIZE                 256
@@ -269,11 +273,12 @@ extern "C" {
 #endif
 
 // Backlight driver
-#define backlightEnable()              (PWM->PWM_CH_NUM[0].PWM_CDTY = g_eeGeneral.backlightBright)
+#define backlightEnable()              (PWM->PWM_CH_NUM[0].PWM_CDTY = currentBacklightBright)
 #define backlightDisable()             (PWM->PWM_CH_NUM[0].PWM_CDTY = 100)
 #define isBacklightEnabled()           (PWM->PWM_CH_NUM[0].PWM_CDTY != 100)
 #define BACKLIGHT_ENABLE()             backlightEnable()
 #define BACKLIGHT_DISABLE()            backlightDisable()
+#define BACKLIGHT_FORCED_ON            101
 
 // ADC driver
 #define NUM_POTS                       3
@@ -346,12 +351,12 @@ void coprocReadData(bool onlytemp=false);
 extern int8_t volumeRequired;
 
 #if defined(COPROCESSOR)
-struct CoprocData {
+typedef struct  {
   uint8_t read;
   int8_t valid;
   int8_t temp;
   int8_t maxtemp;
-};
+} CoprocData;
 
 extern CoprocData coprocData;
 #endif
@@ -377,6 +382,7 @@ void pwrOn();
 uint32_t pwrCheck();
 bool pwrPressed();
 #define UNEXPECTED_SHUTDOWN()          (g_eeGeneral.unexpectedShutdown)
+#define pwrForcePressed()              (false)
 
 // EEPROM driver
 #define EEPROM_SIZE           (4*1024*1024/8)
@@ -393,10 +399,8 @@ void debugPutc(const char c);
 
 // Telemetry driver
 void telemetryPortInit(uint32_t baudrate, uint8_t mode);
-inline void telemetryPortSetDirectionOutput()
-{
-}
-uint32_t telemetryTransmitPending();
+void telemetryPortSetDirectionOutput();
+void telemetryPortSetDirectionInput();
 void telemetryTransmitBuffer(const uint8_t * buffer, uint32_t size);
 void rxPdcUsart( void (*pChProcess)(uint8_t x) );
 void sportSendBuffer(const uint8_t * buffer, uint32_t size);
@@ -409,5 +413,8 @@ bool telemetrySecondPortReceive(uint8_t & data);
 #endif
 
 extern const uint8_t BootCode[];
+
+// Pulses driver
+#define HARDWARE_EXTRA_MODULE
 
 #endif // _BOARD_SKY9X_H_

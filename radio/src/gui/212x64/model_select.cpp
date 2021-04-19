@@ -20,7 +20,6 @@
 
 #include "opentx.h"
 
-#define MODELSIZE_POS_X 170
 #define MODELSEL_W 133
 
 void onModelSelectMenu(const char * result)
@@ -28,6 +27,10 @@ void onModelSelectMenu(const char * result)
   int8_t sub = menuVerticalPosition;
 
   if (result == STR_SELECT_MODEL || result == STR_CREATE_MODEL) {
+    if (!g_eeGeneral.disableRssiPoweroffAlarm) {
+      if (!confirmModelChange())
+        return;
+    }
     selectModel(sub);
   }
   else if (result == STR_COPY_MODEL) {

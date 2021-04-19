@@ -23,7 +23,7 @@
 
 #include <QObject>
 #include <QMap>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QStringList>
 #include <SDL.h>
@@ -49,23 +49,26 @@ class Joystick : public QObject
     QMap<int, int> deadzones;
     QMap<int, int> sensitivities;
 
-    Joystick(QObject *parent = 0,
-             int joystickEventTimeout = SDL_JOYSTICK_DEFAULT_EVENT_TIMEOUT,
-             bool doAutoRepeat = true,
-             int autoRepeatDelay = SDL_JOYSTICK_DEFAULT_AUTOREPEAT_DELAY);
-    ~Joystick();
+    explicit Joystick(QObject * parent = nullptr,
+                      int joystickEventTimeout = SDL_JOYSTICK_DEFAULT_EVENT_TIMEOUT,
+                      bool doAutoRepeat = true,
+                      int autoRepeatDelay = SDL_JOYSTICK_DEFAULT_AUTOREPEAT_DELAY);
+    ~Joystick() override;
     bool open(int);
     void close();
-    bool isOpen() { return joystick != NULL; }
+    bool isOpen()
+    {
+      return joystick != nullptr;
+    }
     int getAxisValue(int);
 
   private:
     QMap<int, Sint16> axes;
     QMap<int, Uint8> buttons;
     QMap<int, Uint8> hats;
-    QMap<int, QTime> axisRepeatTimers;
-    QMap<int, QTime> buttonRepeatTimers;
-    QMap<int, QTime> hatRepeatTimers;
+    QMap<int, QElapsedTimer> axisRepeatTimers;
+    QMap<int, QElapsedTimer> buttonRepeatTimers;
+    QMap<int, QElapsedTimer> hatRepeatTimers;
 
   signals:
     void axisValueChanged(int axis, int value);

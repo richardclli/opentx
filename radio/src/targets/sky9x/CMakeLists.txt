@@ -6,12 +6,16 @@ set(HAPTIC YES)
 set(STORAGE EEPROM)
 set(STORAGE_FORMAT RAW)
 set(GUI_DIR 128x64)
+set(BITMAPS_DIR 128x64)
 set(NAVIGATION_TYPE 9x)
 set(BITMAPS_TARGET 9x_bitmaps)
 set(TARGET_DIR sky9x)
 set(RADIO_DEPENDENCIES ${RADIO_DEPENDENCIES} 9x_bitmaps)
 set(PPM_LIMITS_SYMETRICAL YES)
 set(PXX1 YES)
+set(AFHDS3 NO)
+set(GHOST NO)
+add_definitions(-DHARDWARE_EXTERNAL_MODULE)
 add_definitions(-DDISABLE_MULTI_UPDATE)
 
 if(PCB STREQUAL 9XRPRO)
@@ -73,6 +77,7 @@ set(GUI_SRC
   radio_diaganas.cpp
   view_telemetry.cpp
   view_about.cpp
+  view_channels.cpp
   )
 
 if(GVARS)
@@ -121,9 +126,13 @@ set(FIRMWARE_TARGET_SRC
   MEDSdcard.c
   )
 
+set(FIRMWARE_TARGET_SRC
+  ${FIRMWARE_TARGET_SRC}
+  telemetry_driver.cpp
+  )
+
 set(TARGET_SRC
   ${TARGET_SRC}
-  telemetry_driver.cpp
   adc_driver.cpp
   pulses_driver.cpp
   audio_driver.cpp

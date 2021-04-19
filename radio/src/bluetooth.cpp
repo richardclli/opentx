@@ -21,6 +21,10 @@
 #include "opentx.h"
 #include "io/frsky_firmware_update.h"
 
+#if defined(LOG_BLUETOOTH)
+extern FIL g_bluetoothFile;
+#endif
+
 #if defined(PCBX9E)
 #define BLUETOOTH_COMMAND_NAME         "TTM:REN-"
 #define BLUETOOTH_ANSWER_NAME          "TTM:REN"
@@ -44,23 +48,24 @@ Bluetooth bluetooth;
 
 void Bluetooth::write(const uint8_t * data, uint8_t length)
 {
-  TRACE_NOCRLF("BT>");
-  for (int i=0; i<length; i++) {
-    TRACE_NOCRLF(" %02X", data[i]);
-    while (btTxFifo.isFull()) {
-      if (!bluetoothIsWriting())
-        bluetoothWriteWakeup();
-      RTOS_WAIT_MS(1);
+  if (btTxFifo.hasSpace(length)) {
+    BLUETOOTH_TRACE("BT>");
+    for (int i = 0; i < length; i++) {
+      BLUETOOTH_TRACE(" %02X", data[i]);
+      btTxFifo.push(data[i]);
     }
-    btTxFifo.push(data[i]);
+    BLUETOOTH_TRACE(CRLF);
   }
-  TRACE_NOCRLF("\r\n");
+  else {
+    BLUETOOTH_TRACE("[BT] TX fifo full!" CRLF);
+  }
+
   bluetoothWriteWakeup();
 }
 
 void Bluetooth::writeString(const char * str)
 {
-  TRACE("BT> %s", str);
+  BLUETOOTH_TRACE("BT> %s" CRLF, str);
   while (*str != 0) {
     btTxFifo.push(*str++);
   }
@@ -77,19 +82,19 @@ char * Bluetooth::readline(bool error_reset)
     if (!btRxFifo.pop(byte)) {
 #if defined(PCBX9E)
       // X9E BT module can get unresponsive
-      TRACE("NO RESPONSE FROM BT MODULE");
+      BLUETOOTH_TRACE("NO RESPONSE FROM BT MODULE" CRLF);
 #endif
       return nullptr;
     }
 
-    TRACE_NOCRLF("%02X ", byte);
+    BLUETOOTH_TRACE("%02X ", byte);
 
 #if 0
     if (error_reset && byte == 'R' && bufferIndex == 4 && memcmp(buffer, "ERRO", 4)) {
 #if defined(PCBX9E)  // X9E enter BT reset loop if following code is implemented
-      TRACE("BT Error...");
+      BLUETOOTH_TRACE("BT Error..." CRLF);
 #else
-      TRACE("BT Reset...");
+      BLUETOOTH_TRACE("BT Reset..." CRLF);
       bufferIndex = 0;
       bluetoothDisable();
       state = BLUETOOTH_STATE_OFF;
@@ -104,12 +109,12 @@ char * Bluetooth::readline(bool error_reset)
       if (bufferIndex > 2 && buffer[bufferIndex-1] == '\r') {
         buffer[bufferIndex-1] = '\0';
         bufferIndex = 0;
-        TRACE("BT< %s", buffer);
+        BLUETOOTH_TRACE("BT< %s" CRLF, buffer);
         if (error_reset && !strcmp((char *)buffer, "ERROR")) {
 #if defined(PCBX9E) // X9E enter BT reset loop if following code is implemented
-          TRACE("BT Error...");
+          BLUETOOTH_TRACE("BT Error..." CRLF);
 #else
-          TRACE("BT Reset...");
+          BLUETOOTH_TRACE("BT Reset..." CRLF);
           bluetoothDisable();
           state = BLUETOOTH_STATE_OFF;
           wakeupTime = get_tmr10ms() + 100; /* 1s */
@@ -137,7 +142,7 @@ char * Bluetooth::readline(bool error_reset)
 
 void Bluetooth::processTrainerFrame(const uint8_t * buffer)
 {
-  TRACE("");
+  BLUETOOTH_TRACE(CRLF);
 
   for (uint8_t channel=0, i=1; channel<8; channel+=2, i+=3) {
     // +-500 != 512, but close enough.
@@ -154,11 +159,13 @@ void Bluetooth::appendTrainerByte(uint8_t data)
     buffer[bufferIndex++] = data;
     // we check for "DisConnected", but the first byte could be altered (if received in state STATE_DATA_XOR)
     if (data == '\n') {
-      if (!strncmp((char *)&buffer[bufferIndex-13], "isConnected", 11)) {
-        TRACE("BT< DisConnected");
-        state = BLUETOOTH_STATE_DISCONNECTED;
-        bufferIndex = 0;
-        wakeupTime += 200; // 1s
+      if (bufferIndex >= 13) {      
+        if (!strncmp((char *)&buffer[bufferIndex-13], "isConnected", 11)) {
+          BLUETOOTH_TRACE("BT< DisConnected" CRLF);
+          state = BLUETOOTH_STATE_DISCONNECTED;
+          bufferIndex = 0;
+          wakeupTime += 200; // 1s
+        }
       }
     }
   }
@@ -171,7 +178,7 @@ void Bluetooth::processTrainerByte(uint8_t data)
   switch (dataState) {
     case STATE_DATA_START:
       if (data == START_STOP) {
-        dataState = STATE_DATA_IN_FRAME ;
+        dataState = STATE_DATA_IN_FRAME;
         bufferIndex = 0;
       }
       else {
@@ -184,7 +191,7 @@ void Bluetooth::processTrainerByte(uint8_t data)
         dataState = STATE_DATA_XOR; // XOR next byte
       }
       else if (data == START_STOP) {
-        dataState = STATE_DATA_IN_FRAME ;
+        dataState = STATE_DATA_IN_FRAME;
         bufferIndex = 0;
       }
       else {
@@ -210,11 +217,11 @@ void Bluetooth::processTrainerByte(uint8_t data)
 
   if (bufferIndex >= BLUETOOTH_PACKET_SIZE) {
     uint8_t crc = 0x00;
-    for (int i=0; i<13; i++) {
+    for (int i = 0; i < BLUETOOTH_PACKET_SIZE - 1; i++) {
       crc ^= buffer[i];
     }
-    if (crc == buffer[13]) {
-      if (buffer[0] == 0x80) {
+    if (crc == buffer[BLUETOOTH_PACKET_SIZE - 1]) {
+      if (buffer[0] == TRAINER_FRAME) {
         processTrainerFrame(buffer);
       }
     }
@@ -244,7 +251,7 @@ void Bluetooth::sendTrainer()
   crc = 0x00;
 
   buffer[bufferIndex++] = START_STOP; // start byte
-  pushByte(0x80); // trainer frame type?
+  pushByte(TRAINER_FRAME);
   for (int channel=0; channel<lastCh; channel+=2, cur+=3) {
     uint16_t channelValue1 = PPM_CH_CENTER(channel) + limit((int16_t)-PPM_range, channelOutputs[channel], (int16_t)PPM_range) / 2;
     uint16_t channelValue2 = PPM_CH_CENTER(channel+1) + limit((int16_t)-PPM_range, channelOutputs[channel+1], (int16_t)PPM_range) / 2;
@@ -285,7 +292,7 @@ void Bluetooth::receiveTrainer()
       return;
     }
 
-    TRACE_NOCRLF("%02X ", byte);
+    BLUETOOTH_TRACE("%02X ", byte);
 
     processTrainerByte(byte);
   }
@@ -311,7 +318,7 @@ void Bluetooth::wakeup(void)
         uint8_t len = ZLEN(g_eeGeneral.bluetoothName);
         if (len > 0) {
           for (int i = 0; i < len; i++) {
-            *cur++ = char2lower(zchar2char(g_eeGeneral.bluetoothName[i]));
+            *cur++ = char2lower(g_eeGeneral.bluetoothName[i]);
           }
           *cur = '\0';
         }
@@ -414,7 +421,7 @@ void Bluetooth::wakeup()
       uint8_t len = ZLEN(g_eeGeneral.bluetoothName);
       if (len > 0) {
         for (int i = 0; i < len; i++) {
-          *cur++ = char2lower(zchar2char(g_eeGeneral.bluetoothName[i]));
+          *cur++ = char2lower(g_eeGeneral.bluetoothName[i]);
         }
         *cur = '\0';
       }
@@ -775,8 +782,7 @@ const char * Bluetooth::flashFirmware(const char * filename, ProgressHandler pro
   BACKLIGHT_ENABLE();
 
   if (result) {
-    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR);
-    SET_WARNING_INFO(result, strlen(result), 0);
+    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR, result);
   }
   else {
     POPUP_INFORMATION(STR_FIRMWARE_UPDATE_SUCCESS);

@@ -21,6 +21,8 @@
 #ifndef _AUDIO_DRIVER_H_
 #define _AUDIO_DRIVER_H_
 
+#include <inttypes.h>
+
 void audioInit() ;
 void audioEnd() ;
 void audioConsumeCurrentBuffer();
@@ -33,5 +35,7 @@ void setSampleRate( uint32_t frequency ) ;
 #define VOLUME_LEVEL_DEF  12
 
 void setScaledVolume(uint8_t volume);
+
+#define audioWaitReady()
 
 #endif // _AUDIO_DRIVER_H_

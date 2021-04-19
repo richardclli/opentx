@@ -21,11 +21,14 @@
 // No include guards here, this file may be included many times in different namespaces
 // i.e. BACKUP RAM Backup/Restore functions
 
+#pragma once
+
 #include <inttypes.h>
 #include "board.h"
 #include "dataconstants.h"
 #include "definitions.h"
 #include "opentx_types.h"
+#include "globals.h"
 
 #if defined(PCBTARANIS)
   #define N_TARANIS_FIELD(x)
@@ -331,10 +334,10 @@ PACK(struct TelemetrySensor {
     NOBACKUP(uint16_t persistentValue);
   } NAME(id1) FUNC(select_id1);
   union {
-    PACK(struct {
+    NOBACKUP(PACK(struct {
       uint8_t physID:5;
       uint8_t rxIndex:3; // 1 bit for module index, 2 bits for receiver index
-    }) frskyInstance;
+    }) frskyInstance);
     uint8_t instance;
     NOBACKUP(uint8_t formula);
   } NAME(id2) FUNC(select_id2);
@@ -383,20 +386,7 @@ PACK(struct TelemetrySensor {
     bool isPrecConfigurable() const;
     int32_t getPrecMultiplier() const;
     int32_t getPrecDivisor() const;
-    bool isSameInstance(TelemetryProtocol protocol, uint8_t instance)
-    {
-      if (this->instance == instance)
-        return true;
-
-      if (protocol == PROTOCOL_TELEMETRY_FRSKY_SPORT) {
-        if (((this->instance ^ instance) & 0x9F) == 0 && (this->instance >> 5) != TELEMETRY_ENDPOINT_SPORT && (instance >> 5) != TELEMETRY_ENDPOINT_SPORT) {
-          this->instance = instance; // update the instance in case we had telemetry switching
-          return true;
-        }
-      }
-
-      return false;
-    }
+    bool isSameInstance(TelemetryProtocol protocol, uint8_t instance);
   );
 });
 
@@ -405,8 +395,7 @@ PACK(struct TelemetrySensor {
  */
 
 PACK(struct TrainerModuleData {
-  uint8_t mode:3;
-  uint8_t spare1:5 SKIP;
+  uint8_t mode;
   uint8_t channelsStart;
   int8_t  channelsCount; // 0=8 channels
   int8_t frameLength;
@@ -448,6 +437,9 @@ PACK(struct ModuleData {
       uint8_t autoBindMode:1;
       uint8_t lowPowerMode:1;
       int8_t optionValue;
+      uint8_t receiverTelemetryOff:1;
+      uint8_t receiverHigherChannels:1;
+      uint8_t spare:6;
     } multi);
     NOBACKUP(struct {
       uint8_t power:2;                  // 0=10 mW, 1=100 mW, 2=500 mW, 3=1W
@@ -463,26 +455,46 @@ PACK(struct ModuleData {
       uint8_t spare2:1 SKIP;
       int8_t refreshRate;  // definition as framelength for ppm (* 5 + 225 = time in 1/10 ms)
     } sbus);
-    NOBACKUP(PACK(struct {
+    NOBACKUP(struct {
       uint8_t receivers; // 5 bits spare
       char receiverName[PXX2_MAX_RECEIVERS_PER_MODULE][PXX2_LEN_RX_NAME];
-    }) pxx2);
-#if defined(PCBFLYSKY)
+    } pxx2);
+#if defined(AFHDS2)
     NOBACKUP(struct {
       uint8_t rx_id[4];
       uint8_t mode;
       uint8_t rx_freq[2];
     } flysky);
 #endif
+#if defined(AFHDS3)
+    NOBACKUP(PACK(struct {
+      uint8_t bindPower:3;
+      uint8_t runPower:3;
+      uint8_t emi:1;
+      uint8_t telemetry:1;
+      uint16_t failsafeTimeout;
+      uint8_t rx_freq[2];
+      uint16_t rxFreq()
+      {
+        return (uint16_t)rx_freq[0] | (((uint16_t)rx_freq[1]) << 8);
+      }
+
+      void setRxFreq(uint16_t value)
+      {
+        rx_freq[0] = value & 0xFF;
+        rx_freq[1] = value >> 8;
+      }
+    } afhds3));
+#endif
   } NAME(mod) FUNC(select_mod_type);
 
   // Helper functions to set both of the rfProto protocol at the same time
   NOBACKUP(inline uint8_t getMultiProtocol() {
-    return ((uint8_t) (rfProtocol & 0x0f)) + (multi.rfProtocolExtra << 4);
+    return ((uint8_t) (rfProtocol & 0x0F)) + (multi.rfProtocolExtra << 4);
   })
 
   NOBACKUP(inline void setMultiProtocol(uint8_t proto) {
-    rfProtocol = (uint8_t) (proto & 0x0f);
+    rfProtocol = (uint8_t) (proto & 0x0F);
     multi.rfProtocolExtra = (proto & 0x70) >> 4;
   })
 });
@@ -490,8 +502,6 @@ PACK(struct ModuleData {
 /*
  * Model structure
  */
-
-typedef uint16_t BeepANACenter;
 
 #if LEN_BITMAP_NAME > 0
 #define MODEL_HEADER_BITMAP_FIELD      NOBACKUP(char bitmap[LEN_BITMAP_NAME]);
@@ -535,17 +545,19 @@ typedef uint8_t swarnenable_t;
     swarnenable_t switchWarningEnable; // TODO remove it in 2.4
 #endif
 
-#if defined(COLORLCD)
+#if defined(COLORLCD) && defined(BACKUP)
+#define CUSTOM_SCREENS_DATA
+#elif defined(COLORLCD)
 #include "gui/colorlcd/layout.h"
 #include "gui/colorlcd/topbar.h"
-#define LAYOUT_NAME_LEN 10
+#define LAYOUT_ID_LEN 10
 PACK(struct CustomScreenData {
-  char layoutName[LAYOUT_NAME_LEN];
+  char LayoutId[LAYOUT_ID_LEN];
   Layout::PersistentData layoutData;
 });
 #define CUSTOM_SCREENS_DATA \
   NOBACKUP(CustomScreenData screenData[MAX_CUSTOM_SCREENS]); \
-  NOBACKUP(Topbar::PersistentData topbarData); \
+  NOBACKUP(TopBar::PersistentData topbarData); \
   NOBACKUP(uint8_t view);
 #else
 #define CUSTOM_SCREENS_DATA \
@@ -609,8 +621,9 @@ PACK(struct ModelData {
 
   NOBACKUP(RssiAlarmData rssiAlarms);
 
-  NOBACKUP(uint8_t spare1:6 SKIP);
-  NOBACKUP(uint8_t potsWarnMode:2);
+  uint8_t spare1:3;
+  uint8_t thrTrimSw:3;
+  uint8_t potsWarnMode:2;
 
   ModuleData moduleData[NUM_MODULES];
   int16_t failsafeChannels[MAX_OUTPUT_CHANNELS];
@@ -629,6 +642,28 @@ PACK(struct ModelData {
   CUSTOM_SCREENS_DATA
 
   char modelRegistrationID[PXX2_LEN_REGISTRATION_ID];
+
+  bool isTrainerTraineeEnable() const
+  {
+#if defined(PCBNV14)
+    return trainerData.mode >= TRAINER_MODE_MASTER_TRAINER_JACK;
+#else
+    return true;
+#endif
+  }
+
+  uint8_t getThrottleStickTrimSource() const
+  {
+    // The order here is TERA, so that 0 (default) means Throttle
+    switch (thrTrimSw) {
+      case 0:
+        return MIXSRC_TrimThr;
+      case 2:
+        return MIXSRC_TrimRud;
+      default:
+        return thrTrimSw + MIXSRC_FIRST_TRIM;
+    }
+  }
 });
 
 /*
@@ -675,7 +710,8 @@ PACK(struct TrainerData {
 
 #if defined(PCBHORUS) || defined(PCBNV14)
   #define EXTRA_GENERAL_FIELDS \
-    NOBACKUP(uint8_t auxSerialMode); \
+    NOBACKUP(uint8_t auxSerialMode:4); \
+    NOBACKUP(uint8_t aux2SerialMode:4); \
     swconfig_t switchConfig ARRAY(2,struct_switchConfig,nullptr);       \
     uint16_t potsConfig ARRAY(2,struct_potConfig,nullptr); /* two bits per pot */ \
     uint8_t slidersConfig ARRAY(1,struct_sliderConfig,nullptr); /* 1 bit per slider */ \
@@ -719,12 +755,12 @@ PACK(struct TrainerData {
   #define EXTRA_GENERAL_FIELDS
 #endif
 
-#if defined(COLORLCD)
+#if defined(COLORLCD) && !defined(BACKUP)
   #include "theme.h"
   #define THEME_NAME_LEN 8
   #define THEME_DATA \
     NOBACKUP(char themeName[THEME_NAME_LEN]); \
-    NOBACKUP(ThemeBase::PersistentData themeData);
+    NOBACKUP(OpenTxTheme::PersistentData themeData);
 #else
   #define THEME_DATA
 #endif
@@ -747,7 +783,8 @@ PACK(struct RadioData {
   uint8_t backlightMode:3;
   int8_t antennaMode:2;
   uint8_t disableRtcWarning:1;
-  int8_t spare1:2 SKIP;
+  uint8_t keysBacklight:1;
+  int8_t spare1:1 SKIP;
   NOBACKUP(TrainerData trainer);
   NOBACKUP(uint8_t view);            // index of view in main screen
   NOBACKUP(BUZZER_FIELD); /* 2bits */
@@ -791,7 +828,7 @@ PACK(struct RadioData {
   NOBACKUP(uint8_t  disableRssiPoweroffAlarm:1);
   NOBACKUP(uint8_t  USBMode:2);
   NOBACKUP(uint8_t  jackMode:2);
-  NOBACKUP(uint8_t  spare3:1 SKIP);
+  NOBACKUP(uint8_t  sportUpdatePower:1 SKIP);
   NOBACKUP(char     ttsLanguage[2]);
   NOBACKUP(int8_t   beepVolume:4);
   NOBACKUP(int8_t   wavVolume:4);
@@ -884,7 +921,7 @@ static inline void check_struct()
   CHKSIZE(ModelHeader, 31);
   CHKSIZE(CurveHeader, 4);
   CHKSIZE(CustomScreenData, 850);
-  CHKSIZE(Topbar::PersistentData, 300);
+  CHKSIZE(TopBar::PersistentData, 300);
 #elif defined(PCBNV14)
   // TODO
 #elif defined(PCBSKY9X)

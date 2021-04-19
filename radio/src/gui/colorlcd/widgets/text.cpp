@@ -20,43 +20,45 @@
 
 #include "opentx.h"
 
-#define TEXT_WIDGET_DEFAULT_LABEL  '\15', '\347', '\0', '\14', '\377', '\376', '\373', '\364'  // "My Label"
+#define TEXT_WIDGET_DEFAULT_LABEL  'M', 'y', ' ', 'L', 'a', 'b', 'e', 'l' // "My Label"
 
 class TextWidget: public Widget
 {
   public:
-    TextWidget(const WidgetFactory * factory, const Zone & zone, Widget::PersistentData * persistentData):
-      Widget(factory, zone, persistentData)
+    TextWidget(const WidgetFactory * factory, FormGroup * parent, const rect_t & rect, Widget::PersistentData * persistentData):
+      Widget(factory, parent, rect, persistentData)
     {
     }
 
-    virtual void refresh();
+    void paint(BitmapBuffer * dc) override
+    {
+      // clear the background
+      dc->clear(DEFAULT_BGCOLOR);
+
+      // get font color from options[1]
+      lcdSetColor(persistentData->options[1].value.unsignedValue);
+
+      // get font size from options[2]
+      LcdFlags fontsize = persistentData->options[2].value.unsignedValue << 8u;
+
+      // draw shadow
+      if (persistentData->options[3].value.boolValue) {
+        dc->drawText(1, 1, persistentData->options[0].value.stringValue, fontsize | BLACK);
+      }
+
+      // draw text
+      dc->drawText(0, 0, persistentData->options[0].value.stringValue, fontsize | CUSTOM_COLOR);
+    }
 
     static const ZoneOption options[];
 };
 
 const ZoneOption TextWidget::options[] = {
-  { "Text", ZoneOption::String, OPTION_VALUE_STRING(TEXT_WIDGET_DEFAULT_LABEL) },
-  { "Color", ZoneOption::Color, OPTION_VALUE_UNSIGNED(RED) },
-  { "Size", ZoneOption::TextSize, OPTION_VALUE_UNSIGNED(0) },
-  { "Shadow", ZoneOption::Bool, OPTION_VALUE_BOOL(false)  },
-  { NULL, ZoneOption::Bool }
+  { STR_TEXT, ZoneOption::String, OPTION_VALUE_STRING(TEXT_WIDGET_DEFAULT_LABEL) },
+  { STR_COLOR, ZoneOption::Color, OPTION_VALUE_UNSIGNED(RED) },
+  { STR_SIZE, ZoneOption::TextSize, OPTION_VALUE_UNSIGNED(0) },
+  { STR_SHADOW, ZoneOption::Bool, OPTION_VALUE_BOOL(false)  },
+  { nullptr, ZoneOption::Bool }
 };
-
-void TextWidget::refresh()
-{
-  lcdSetColor(persistentData->options[1].value.unsignedValue);
-  LcdFlags fontsize = FONTSIZE(persistentData->options[2].value.unsignedValue << 8);
-  if(persistentData->options[3].value.boolValue) {
-    lcdDrawSizedText(zone.x+1, zone.y+1,
-                     persistentData->options[0].value.stringValue,
-                     sizeof(persistentData->options[0].value.stringValue),
-                     ZCHAR|fontsize|BLACK);
-  }
-  lcdDrawSizedText(zone.x, zone.y,
-                   persistentData->options[0].value.stringValue,
-                   sizeof(persistentData->options[0].value.stringValue),
-                   ZCHAR|fontsize|CUSTOM_COLOR);
-}
 
 BaseWidgetFactory<TextWidget> textWidget("Text", TextWidget::options);

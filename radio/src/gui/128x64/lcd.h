@@ -50,7 +50,7 @@ typedef uint8_t pixel_t;
 #define FIXEDWIDTH                     0x10
 /* no 0x80 here because of "GV"1 which is aligned LEFT */
 /* no 0x10 here because of "MODEL"01 which uses LEADING0 */
-#define ZCHAR                          0x80
+#define ZCHAR                          0x80u
 
 /* lcdDrawNumber additional flags */
 #define LEADING0                       0x10
@@ -98,8 +98,8 @@ extern coord_t lcdNextPos;
   extern volatile uint32_t lcdInputs ;
 #endif
 
-void lcdDrawChar(coord_t x, coord_t y, const unsigned char c);
-void lcdDrawChar(coord_t x, coord_t y, const unsigned char c, LcdFlags flags);
+void lcdDrawChar(coord_t x, coord_t y, uint8_t c);
+void lcdDrawChar(coord_t x, coord_t y, uint8_t c, LcdFlags flags);
 void lcdDrawCenteredText(coord_t y, const char * s, LcdFlags flags = 0);
 void lcdDrawText(coord_t x, coord_t y, const char * s, LcdFlags flags);
 void lcdDrawTextAtIndex(coord_t x, coord_t y, const char * s, uint8_t idx, LcdFlags flags);
@@ -109,13 +109,11 @@ void lcdDrawSizedText(coord_t x, coord_t y, const char * s, unsigned char len);
 void lcdDrawTextAlignedLeft(coord_t y, const char * s);
 void drawTimerWithMode(coord_t x, coord_t y, uint8_t index, LcdFlags att);
 
-#define lcdDrawTextAlignedCenter(y, s) lcdDrawText((LCD_W-sizeof(s)*FW+FW+1)/2, y, s)
-
 void lcdDrawHexNumber(coord_t x, coord_t y, uint32_t val, LcdFlags mode=0);
 void lcdDrawHexChar(coord_t x, coord_t y, uint8_t val, LcdFlags flags=0);
 
-void lcdDrawNumber(coord_t x, coord_t y, int val, LcdFlags mode, uint8_t len);
-void lcdDrawNumber(coord_t x, coord_t y, int val, LcdFlags mode=0);
+void lcdDrawNumber(coord_t x, coord_t y, int32_t val, LcdFlags mode, uint8_t len);
+void lcdDrawNumber(coord_t x, coord_t y, int32_t val, LcdFlags mode=0);
 void lcdDraw8bitsNumber(coord_t x, coord_t y, int8_t val);
 
 void drawModelName(coord_t x, coord_t y, char * name, uint8_t id, LcdFlags att);
@@ -178,8 +176,9 @@ uint8_t * lcdLoadBitmap(uint8_t * dest, const char * filename, uint8_t width, ui
 #if defined(BOOT)
   #define BLINK_ON_PHASE               (0)
 #else
-  #define BLINK_ON_PHASE               (g_blinkTmr10ms & (1<<6))
   #define SLOW_BLINK_ON_PHASE          (g_blinkTmr10ms & (1<<7))
+  #define BLINK_ON_PHASE               (g_blinkTmr10ms & (1<<6))
+  #define FAST_BLINK_ON_PHASE          (g_blinkTmr10ms & (1<<4))
 #endif
 
 inline pixel_t getPixel(uint8_t x, uint8_t y)

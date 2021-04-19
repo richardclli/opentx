@@ -9,6 +9,11 @@ import tempfile
 
 
 boards = {
+    "TLITE": {
+        "PCB": "X7",
+        "PCBREV": "TLITE",
+        "DEFAULT_MODE": "2",
+    },
     "T12": {
         "PCB": "X7",
         "PCBREV": "T12",
@@ -23,6 +28,12 @@ boards = {
     "T16": {
         "PCB": "X10",
         "PCBREV": "T16",
+        "INTERNAL_MODULE_MULTI": "YES",
+        "DEFAULT_MODE": "2",
+    },
+    "T18": {
+        "PCB": "X10",
+        "PCBREV": "T18",
         "INTERNAL_MODULE_MULTI": "YES",
         "DEFAULT_MODE": "2",
     }
@@ -47,7 +58,7 @@ def build(board, translation, srcdir):
     command = "cmake %s -DTRANSLATIONS=%s -DJUMPER_RELEASE=YES %s" % (cmake_options, translation, srcdir)
     print(command)
     os.system(command)
-    os.system("make firmware -j6")
+    os.system("make firmware -j16")
     os.chdir(cwd)
     index = 0
     while 1:

@@ -161,7 +161,7 @@ const uint8_t * FrskyDeviceFirmwareUpdate::readFullDuplexFrame(ModuleFifo & fifo
 
 const uint8_t * FrskyDeviceFirmwareUpdate::readHalfDuplexFrame(uint32_t timeout)
 {
-  for (int i=timeout; i>=0; i--) {
+  for (int i = timeout; i >= 0; i--) {
     uint8_t byte ;
     while (telemetryGetByte(&byte)) {
       if (pushFrskyTelemetryData(byte)) {
@@ -314,12 +314,12 @@ const char * FrskyDeviceFirmwareUpdate::doFlashFirmware(const char * filename, P
   }
   else {
 #if defined(PCBHORUS)
-    information.productId = FIRMWARE_ID_XJT;
+    information.productId = FIRMWARE_ID_MODULE_XJT;
 #endif
   }
 
 #if defined(PCBHORUS)
-  if (module == INTERNAL_MODULE && information.productId == FIRMWARE_ID_XJT) {
+  if (module == INTERNAL_MODULE && information.productId == FIRMWARE_ID_MODULE_XJT) {
     INTERNAL_MODULE_ON();
     RTOS_WAIT_MS(1);
     intmoduleSerialStart(38400, true, USART_Parity_No, USART_StopBits_1, USART_WordLength_8b);
@@ -485,10 +485,15 @@ const char * FrskyDeviceFirmwareUpdate::flashFirmware(const char * filename, Pro
   INTERNAL_MODULE_OFF();
 #endif
 
+#if defined(HARDWARE_EXTERNAL_MODULE)
   uint8_t extPwr = IS_EXTERNAL_MODULE_ON();
   EXTERNAL_MODULE_OFF();
+#endif
 
+#if defined(SPORT_UPDATE_PWR_GPIO)
+  uint8_t spuPwr = IS_SPORT_UPDATE_POWER_ON();
   SPORT_UPDATE_POWER_OFF();
+#endif
 
   progressHandler(getBasename(filename), STR_DEVICE_RESET, 0, 0);
 
@@ -502,8 +507,7 @@ const char * FrskyDeviceFirmwareUpdate::flashFirmware(const char * filename, Pro
   BACKLIGHT_ENABLE();
 
   if (result) {
-    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR);
-    SET_WARNING_INFO(result, strlen(result), 0);
+    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR, result);
   }
   else {
     POPUP_INFORMATION(STR_FIRMWARE_UPDATE_SUCCESS);
@@ -527,10 +531,18 @@ const char * FrskyDeviceFirmwareUpdate::flashFirmware(const char * filename, Pro
   }
 #endif
 
+#if defined(HARDWARE_EXTERNAL_MODULE)
   if (extPwr) {
     EXTERNAL_MODULE_ON();
     setupPulsesExternalModule();
   }
+#endif
+
+#if defined(SPORT_UPDATE_PWR_GPIO)
+  if (spuPwr) {
+    SPORT_UPDATE_POWER_ON();
+  }
+#endif
 
   state = SPORT_IDLE;
   resumePulses();
@@ -753,7 +765,10 @@ const char * FrskyChipFirmwareUpdate::flashFirmware(const char * filename, Progr
   uint8_t extPwr = IS_EXTERNAL_MODULE_ON();
   EXTERNAL_MODULE_OFF();
 
+#if defined(SPORT_UPDATE_PWR_GPIO)
+  uint8_t spuPwr = IS_SPORT_UPDATE_POWER_ON();
   SPORT_UPDATE_POWER_OFF();
+#endif
 
   if (wait) {
     /* wait 2s off */
@@ -769,8 +784,7 @@ const char * FrskyChipFirmwareUpdate::flashFirmware(const char * filename, Progr
   BACKLIGHT_ENABLE();
 
   if (result) {
-    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR);
-    SET_WARNING_INFO(result, strlen(result), 0);
+    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR, result);
   }
   else {
     POPUP_INFORMATION(STR_FIRMWARE_UPDATE_SUCCESS);
@@ -787,10 +801,18 @@ const char * FrskyChipFirmwareUpdate::flashFirmware(const char * filename, Progr
   }
 #endif
 
+#if defined(HARDWARE_EXTERNAL_MODULE)
   if (extPwr) {
     EXTERNAL_MODULE_ON();
     setupPulsesExternalModule();
   }
+#endif
+
+#if defined(SPORT_UPDATE_PWR_GPIO)
+  if (spuPwr) {
+    SPORT_UPDATE_POWER_ON();
+  }
+#endif
 
   resumePulses();
 

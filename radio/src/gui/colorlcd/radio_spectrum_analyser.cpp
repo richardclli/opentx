@@ -52,17 +52,17 @@ class SpectrumFooterWindow: public FormGroup
                                     SET_VALUE(reusableBuffer.spectrumAnalyser.track, newValue * 1000000));
       tracker->setSuffix("MHz");
       tracker->setPrefix("T: ");
-      tracker->setFocus();
+      tracker->setFocus(SET_FOCUS_DEFAULT);
 
       if (isModuleMultimodule(moduleIdx)) {
-        char label[10];
+        char label[16];
 
         // Frequency
-        sprintf(label,"T:%dMHz", reusableBuffer.spectrumAnalyser.freq / 1000000);
+        sprintf(label,"T: %dMHz", int(reusableBuffer.spectrumAnalyser.freq / 1000000));
         new StaticText(this, grid.getFieldSlot(3, 0), label);
 
         // Span
-        sprintf(label,"S:%dMHz", reusableBuffer.spectrumAnalyser.span / 1000000);
+        sprintf(label,"S: %dMHz", int(reusableBuffer.spectrumAnalyser.span / 1000000));
         new StaticText(this, grid.getFieldSlot(3, 1), label);
       }
       else {
@@ -260,7 +260,7 @@ void RadioSpectrumAnalyser::start()
 
 void RadioSpectrumAnalyser::stop()
 {
-  new MessageDialog(STR_MODULE, STR_STOPPING);
+  new MessageDialog(this, STR_MODULE, STR_STOPPING);
   if (isModulePXX2(moduleIdx)) {
     moduleState[moduleIdx].readModuleInformation(&reusableBuffer.moduleSetup.pxx2.moduleInformation, PXX2_HW_INFO_TX_ID, PXX2_HW_INFO_TX_ID);
   }

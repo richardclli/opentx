@@ -19,6 +19,7 @@
  */
 
 #include "lcd.h"
+#include "opentx.h"
 
 #if defined(SIMU)
 pixel_t displayBuf[DISPLAY_BUFFER_SIZE];
@@ -28,50 +29,9 @@ uint8_t getMappedChar(uint8_t c)
 {
   uint8_t result;
 
-#if defined(TRANSLATIONS_FR)
-  if (c >= 0x80 && c <= 0x84) {
-    result = 115 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_DE)
-  if (c >= 0x80 && c <= 0x86) {
-    result = 120 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_CZ)
-  if (c >= 0x80 && c <= 0x80+29) {
-    result = 127 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_ES)
-  if (c >= 0x80 && c <= 0x81) {
-    result = 157 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_FI)
-  if (c >= 0x80 && c <= 0x85) {
-    result = 159 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_IT)
-  if (c >= 0x80 && c <= 0x81) {
-    result = 165 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_PL)
-  if (c >= 0x80 && c <= 0x80+17) {
-    result = 167 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_PT)
-  if (c >= 0x80 && c <= 0x80+21) {
-    result = 185 + c - 0x80;
-  }
-#elif defined(TRANSLATIONS_SE)
-  if (c >= 0x80 && c <= 0x85) {
-    result = 207 + c - 0x80;
-  }
-#endif
+  result = c - 0x20;
 
-  if (c < 0xC0)
-    result = c - 0x20;
-  else
-    result = c - 0xC0 + 96;
-
-//  TRACE("getMappedChar '%c' (%x) = %d", c, c, result);
+//  TRACE("getMappedChar '%c' (0x%x) = %d", c, c, result);
 
   return result;
 }
@@ -98,7 +58,7 @@ int getTextWidth(const char * s, int len, LcdFlags flags)
 
   int result = 0;
   for (int i = 0; len == 0 || i < len; ++i) {
-    unsigned int c = uint8_t(*s);
+    unsigned c = uint8_t(*s);
     if (!c) {
       break;
     }
@@ -111,7 +71,7 @@ int getTextWidth(const char * s, int len, LcdFlags flags)
       result += getFontPatternWidth(specs, c) + 1;
     }
     else if (c >= 0x20) {
-      result += getCharWidth(c, specs) + 1;
+      result += getCharWidth(c, specs);
     }
 
     ++s;
@@ -131,7 +91,7 @@ BitmapBuffer * lcd = &_lcd;
 
 void DMAFillRect(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 {
-#if defined(PCBX10) && !defined(SIMU)
+#if defined(LCD_VERTICAL_INVERT)
   x = destw - (x + w);
   y = desth - (y + h);
 #endif
@@ -145,7 +105,7 @@ void DMAFillRect(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, ui
 
 void DMACopyBitmap(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, uint16_t y, const uint16_t * src, uint16_t srcw, uint16_t srch, uint16_t srcx, uint16_t srcy, uint16_t w, uint16_t h)
 {
-#if defined(PCBX10) && !defined(SIMU)
+#if defined(LCD_VERTICAL_INVERT)
   x = destw - (x + w);
   y = desth - (y + h);
   srcx = srcw - (srcx + w);
@@ -159,7 +119,7 @@ void DMACopyBitmap(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, 
 
 void DMACopyAlphaBitmap(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, uint16_t y, const uint16_t * src, uint16_t srcw, uint16_t srch, uint16_t srcx, uint16_t srcy, uint16_t w, uint16_t h)
 {
-#if defined(PCBX10) && !defined(SIMU)
+#if defined(LCD_VERTICAL_INVERT)
   x = destw - (x + w);
   y = desth - (y + h);
   srcx = srcw - (srcx + w);

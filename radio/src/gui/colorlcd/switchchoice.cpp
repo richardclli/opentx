@@ -25,15 +25,17 @@
 #include "draw_functions.h"
 #include "strhelpers.h"
 #include "dataconstants.h"
+#include "opentx.h"
 
-class SwitchChoiceMenuToolbar : public MenuToolbar<SwitchChoice> {
+class SwitchChoiceMenuToolbar : public MenuToolbar<SwitchChoice>
+{
   public:
     SwitchChoiceMenuToolbar(SwitchChoice * choice, Menu * menu):
       MenuToolbar<SwitchChoice>(choice, menu)
     {
-      addButton(char('\312'), SWSRC_FIRST_SWITCH, SWSRC_LAST_SWITCH);
-      addButton(char('\313'), SWSRC_FIRST_TRIM, SWSRC_LAST_TRIM);
-      addButton(char('\312'), SWSRC_FIRST_LOGICAL_SWITCH, SWSRC_LAST_LOGICAL_SWITCH);
+      addButton(CHAR_SWITCH, SWSRC_FIRST_SWITCH, SWSRC_LAST_SWITCH);
+      addButton(CHAR_TRIM, SWSRC_FIRST_TRIM, SWSRC_LAST_TRIM);
+      addButton(CHAR_SWITCH, SWSRC_FIRST_LOGICAL_SWITCH, SWSRC_LAST_LOGICAL_SWITCH);
     }
 };
 
@@ -87,12 +89,13 @@ void SwitchChoice::fillMenu(Menu * menu, std::function<bool(int16_t)> filter)
 
 void SwitchChoice::openMenu()
 {
-  auto menu = new Menu();
+  auto menu = new Menu(this);
   fillMenu(menu);
+
   menu->setToolbar(new SwitchChoiceMenuToolbar(this, menu));
   menu->setCloseHandler([=]() {
       editMode = false;
-      setFocus();
+      setFocus(SET_FOCUS_DEFAULT);
   });
 }
 
@@ -116,7 +119,7 @@ void SwitchChoice::onEvent(event_t event)
 bool SwitchChoice::onTouchEnd(coord_t, coord_t)
 {
   openMenu();
-  setFocus();
+  setFocus(SET_FOCUS_DEFAULT);
   setEditMode(true);
   return true;
 }

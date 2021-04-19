@@ -49,10 +49,15 @@ void menuRadioDiagKeys(event_t event)
       displayKeyState(i&1? 20*FW : 18*FW, y, TRM_BASE+i);
     }
 
-    if (i <= KEY_MAX) {
-      y = MENU_HEADER_HEIGHT + 1 + FH*i;
+    if (i == 7) {
+      y = MENU_HEADER_HEIGHT + 1 + FH * 6;
+      lcdDrawTextAtIndex(8, y, STR_VKEYS, i, 0);
+      displayKeyState(lcdNextPos + 10, y, i);
+    }
+    else if (i <= KEY_MAX) {
+      y = MENU_HEADER_HEIGHT + 1 + FH * i;
       lcdDrawTextAtIndex(0, y, STR_VKEYS, i, 0);
-      displayKeyState(5*FW+2, y, i);
+      displayKeyState(5 * FW + 2, y, i);
     }
 
 #if defined(PCBSKY9X)
@@ -76,6 +81,6 @@ void menuRadioDiagKeys(event_t event)
 #if defined(ROTARY_ENCODER_NAVIGATION)
   coord_t y = MENU_HEADER_HEIGHT + 1 + FH*KEY_COUNT;
   lcdDrawText(0, y, STR_ROTARY_ENCODER);
-  lcdDrawNumber(5*FW+FWNUM+2, y, rotencValue, RIGHT);
+  lcdDrawNumber(5*FW+FWNUM+2, y, rotencValue / ROTARY_ENCODER_GRANULARITY, RIGHT);
 #endif
 }

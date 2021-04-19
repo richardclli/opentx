@@ -126,9 +126,15 @@ uint64_t check3PosSwitchPosition(uint8_t idx, uint8_t sw, bool startup)
 void getSwitchesPosition(bool startup)
 {
   uint64_t newPos = 0;
+#if defined(RADIO_TX12)
+  CHECK_2POS(SW_SA);
+  CHECK_3POS(0, SW_SB);
+  CHECK_3POS(1, SW_SC);
+#else
   CHECK_3POS(0, SW_SA);
   CHECK_3POS(1, SW_SB);
   CHECK_3POS(2, SW_SC);
+#endif
 
 #if defined(PCBX9LITES)
   CHECK_2POS(SW_SD);
@@ -146,6 +152,10 @@ void getSwitchesPosition(bool startup)
 #elif defined(PCBXLITE)
   CHECK_3POS(3, SW_SD);
   // no SWE, SWF, SWG and SWH on XLITE
+#elif defined(RADIO_TX12)
+  CHECK_2POS(SW_SD);
+  CHECK_3POS(2, SW_SE);
+  CHECK_3POS(3, SW_SF);
 #elif defined(PCBX7)
   CHECK_3POS(3, SW_SD);
   CHECK_2POS(SW_SF);
@@ -158,11 +168,13 @@ void getSwitchesPosition(bool startup)
   CHECK_2POS(SW_SH);
 #endif
 
-#if defined(PCBX9DP) && PCBREV >= 2019
+#if defined(RADIO_X9DP2019)
   CHECK_2POS(SW_SI);
 #endif
 
-#if defined(PCBHORUS) || defined(PCBX7)
+#if defined(PCBX7ACCESS)
+  CHECK_2POS(SW_SI);
+#elif defined(PCBHORUS) || defined(PCBX7)
   CHECK_2POS(SW_SI);
   CHECK_2POS(SW_SJ);
 #endif
@@ -507,14 +519,28 @@ swsrc_t getMovedSwitch()
   swsrc_t result = 0;
 
 #if defined(PCBFRSKY)
-  for (int i=0; i<NUM_SWITCHES; i++) {
+  // Switches
+  for (int i = 0; i < NUM_SWITCHES; i++) {
     if (SWITCH_EXISTS(i)) {
-      swarnstate_t mask = ((swarnstate_t)0x03 << (i*2));
-      uint8_t prev = (switches_states & mask) >> (i*2);
-      uint8_t next = (1024+getValue(MIXSRC_SA+i)) / 1024;
+      swarnstate_t mask = ((swarnstate_t) 0x03 << (i * 2));
+      uint8_t prev = (switches_states & mask) >> (i * 2);
+      uint8_t next = (1024 + getValue(MIXSRC_SA + i)) / 1024;
       if (prev != next) {
-        switches_states = (switches_states & (~mask)) | ((swarnstate_t)next << (i*2));
-        result = 1+(3*i)+next;
+        switches_states = (switches_states & (~mask)) | ((swarnstate_t) next << (i * 2));
+        result = 1 + (3 * i) + next;
+      }
+    }
+  }
+  // Multipos
+  for (int i = 0; i < NUM_XPOTS; i++) {
+    if (IS_POT_MULTIPOS(POT1 + i)) {
+      StepsCalibData * calib = (StepsCalibData *) &g_eeGeneral.calib[POT1 + i];
+      if (IS_MULTIPOS_CALIBRATED(calib)) {
+        uint8_t prev = potsPos[i] & 0x0F;
+        uint8_t next = anaIn(POT1 + i) / (2 * RESX / calib->count);
+        if (prev != next) {
+          result = SWSRC_LAST_SWITCH + i * XPOTS_MULTIPOS_COUNT + next + 1;
+        }
       }
     }
   }
@@ -646,7 +672,7 @@ void checkSwitches()
     }
 
     LED_ERROR_BEGIN();
-    backlightOn();
+    resetBacklightTimeout();
 
     // first - display warning
 #if defined(PCBSKY9X)
@@ -671,6 +697,9 @@ void checkSwitches()
       }
       int x = SWITCH_WARNING_LIST_X;
       int y = SWITCH_WARNING_LIST_Y;
+#if defined(COLORLCD)
+      lcdNextPos = SWITCH_WARNING_LIST_X;
+#endif
       int numWarnings = 0;
       for (int i=0; i<NUM_SWITCHES; ++i) {
         if (SWITCH_WARNING_ALLOWED(i) && !(g_model.switchWarningEnable & (1<<i))) {
@@ -745,7 +774,7 @@ void checkSwitches()
     }
 #endif
 
-    doLoopCommonActions();
+    checkBacklight();
 
     WDG_RESET();
 

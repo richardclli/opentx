@@ -2,7 +2,7 @@ include(CMakeForceCompiler)
 include(Bitmaps)
 
 set(PCB_TYPES X9LITE X9LITES X7 XLITE XLITES X9D X9D+ X9E X10 X12S SKY9X 9XRPRO AR9X NV14)
-set(RADIO_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL CN)
+set(RADIO_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL CN TW)
 set(TTS_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL RU)
 
 set(PCB "X9D+" CACHE STRING "Radio type, one of: ${PCB_TYPES}")
@@ -46,12 +46,15 @@ option(TRACE_LUA_INTERNALS "Turn on traces for Lua internals" OFF)
 option(DEBUG_WINDOWS "Turn on windows traces" OFF)
 option(FRSKY_STICKS "Reverse sticks for FrSky sticks" OFF)
 option(NANO "Use nano newlib and binalloc")
-option(NIGHTLY_BUILD_WARNING "Warn this is a nightly build" OFF)
+option(TEST_BUILD_WARNING "Warn this is a test build" OFF)
 option(MODULE_PROTOCOL_FCC "Add support for FCC modules" ON)
 option(MODULE_PROTOCOL_LBT "Add support for EU/LBT modules" ON)
 option(MODULE_PROTOCOL_FLEX "Add support for non certified FLEX modules" OFF)
 option(MODULE_PROTOCOL_D8 "Add support for D8 modules" ON)
 option(FRSKY_RELEASE "Used to build FrSky released firmware" OFF)
+option(TBS_RELEASE "Used to build TBS released firmware" OFF)
+option(IMRC_RELEASE "Used to build IMRC released firmware" OFF)
+option(HARDWARE_TRAINER_MULTI "Allow multi trainer" OFF)
 option(BOOTLOADER "Include Bootloader" ON)
 
 # since we reset all default CMAKE compiler flags for firmware builds, provide an alternate way for user to specify additional flags.
@@ -59,6 +62,12 @@ set(FIRMWARE_C_FLAGS "" CACHE STRING "Additional flags for firmware target c com
 set(FIRMWARE_C_FLAGS_DEBUG "-g" CACHE STRING "Additional flags for firmware target (Debug config) c compiler (note: CMAKE_C_FLAGS_DEBUG is ignored for firmware/bootloader).")
 set(FIRMWARE_CXX_FLAGS "" CACHE STRING "Additional flags for firmware target c++ compiler (note: all CMAKE_CXX_FLAGS[_*] are ignored for firmware/bootloader).")
 set(FIRMWARE_CXX_FLAGS_DEBUG "-g" CACHE STRING "Additional flags for firmware target (Debug config) c++ compiler (note: CMAKE_CXX_FLAGS_DEBUG is ignored for firmware/bootloader).")
+
+set(FIRMWARE_C_COMPILER "arm-none-eabi-gcc" CACHE STRING "Specific C compiler for firmware target.")
+set(FIRMWARE_CXX_COMPILER "arm-none-eabi-g++" CACHE STRING "Specific C++ compiler for firmware target.")
+set(FIRMWARE_ASM_COMPILER "arm-none-eabi-as" CACHE STRING "Specific assembler for firmware target.")
+set(FIRMWARE_OBJCOPY "arm-none-eabi-objcopy" CACHE STRING "Specific objcopy for firmware target.")
+set(FIRMWARE_SIZE "arm-none-eabi-size" CACHE STRING "Specific size for firmware target.")
 
 set(THIRDPARTY_DIR thirdparty)
 set(LUA_DIR ${THIRDPARTY_DIR}/Lua/src)
@@ -134,7 +143,7 @@ add_definitions(-DFLAVOUR="${FLAVOUR}")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/bitmaps/${GUI_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/bitmaps/${BITMAPS_DIR})
 
 include(gui/CMakeLists.txt)
 
@@ -167,8 +176,6 @@ endif()
 
 include(storage/conversions/CMakeLists.txt)
 
-add_subdirectory(lua)
-
 if(RTC_BACKUP_RAM)
   add_definitions(-DRTC_BACKUP_RAM)
   set(SRC ${SRC} storage/rlc.cpp)
@@ -192,7 +199,12 @@ if(NOT LUA STREQUAL NO)
   if(LUA STREQUAL YES)
     add_definitions(-DLUA_MODEL_SCRIPTS)
   endif()
-  set(SRC ${SRC} lua/interface.cpp lua/api_general.cpp lua/api_lcd.cpp lua/api_model.cpp)
+  set(SRC ${SRC} lua/interface.cpp lua/api_general.cpp lua/api_model.cpp lua/widgets.cpp)
+  if(GUI_DIR STREQUAL colorlcd)
+    set(SRC ${SRC} lua/api_colorlcd.cpp)
+  else()
+    set(SRC ${SRC} lua/api_stdlcd.cpp)
+  endif()
   set(LUA_SRC lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c lobject.c lopcodes.c lparser.c
     lstate.c lstring.c ltable.c lrotable.c ltm.c lundump.c lvm.c lzio.c linit.c
     lbaselib.c lmathlib.c lbitlib.c loadlib.c lauxlib.c ltablib.c lcorolib.c liolib.c lstrlib.c
@@ -338,8 +350,8 @@ if(EEPROM_VARIANT_NEEDED)
   add_definitions(-DEEPROM_VARIANT=${EEPROM_VARIANT})
 endif()
 
-if(NIGHTLY_BUILD_WARNING)
-  add_definitions(-DNIGHTLY_BUILD_WARNING)
+if(TEST_BUILD_WARNING)
+  add_definitions(-DTEST_BUILD_WARNING)
 endif()
 
 if(MODULE_PROTOCOL_FCC)
@@ -362,16 +374,39 @@ if(JUMPER_RELEASE)
   add_definitions(-DJUMPER_RELEASE)
 endif()
 
+if(RADIOMASTER_RELEASE)
+  add_definitions(-DRADIOMASTER_RELEASE)
+endif()
+
+if(RADIOMASTER_RTF_RELEASE)
+  add_definitions(-DRADIOMASTER_RTF_RELEASE)
+endif()
+
+if(TBS_RELEASE)
+  add_definitions(-DTBS_RELEASE)
+endif()
+
+if(IMRC_RELEASE)
+  add_definitions(-DIMRC_RELEASE)
+endif()
+
 if(FRSKY_RELEASE)
   add_definitions(-DFRSKY_RELEASE)
   set(POPUP_LEVEL 3)
 endif()
 
+if(HARDWARE_TRAINER_MULTI)
+  add_definitions(-DHARDWARE_TRAINER_MULTI)
+endif()
+
 add_definitions(-DPOPUP_LEVEL=${POPUP_LEVEL})
 
-if(BOOTLOADER)
-  add_definitions(-DBOOTLOADER)
-endif(BOOTLOADER)
+if(INTERNAL_MODULE_MULTI)
+  set(DEFAULT_TEMPLATE_SETUP 21 CACHE STRING "")
+else()
+  set(DEFAULT_TEMPLATE_SETUP 0 CACHE STRING "")
+endif()
+add_definitions(-DDEFAULT_TEMPLATE_SETUP=${DEFAULT_TEMPLATE_SETUP})
 
 set(SRC
   ${SRC}
@@ -380,9 +415,11 @@ set(SRC
   strhelpers.cpp
   switches.cpp
   mixer.cpp
+  mixer_scheduler.cpp
   stamp.cpp
   timers.cpp
   trainer.cpp
+  model_init.cpp
   )
 
 if(GUI)
@@ -432,7 +469,6 @@ endif()
 
 set(SRC ${SRC} ${FIRMWARE_SRC})
 
-
 ##### firmware target #####
 
 option(FIRMWARE_TARGET "Configure Firmware target (can be turned of for compiling Companion only)" ON)
@@ -473,9 +509,9 @@ if(NOT MSVC)
 
   if(ARCH STREQUAL ARM)
     enable_language(ASM)
-    set(CMAKE_C_COMPILER arm-none-eabi-gcc)
-    set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
-    set(CMAKE_ASM_COMPILER arm-none-eabi-as)
+    set(CMAKE_C_COMPILER ${FIRMWARE_C_COMPILER})
+    set(CMAKE_CXX_COMPILER ${FIRMWARE_CXX_COMPILER})
+    set(CMAKE_ASM_COMPILER ${FIRMWARE_ASM_COMPILER})
 
     set(CMAKE_SYSTEM_NAME Generic)
     set(CMAKE_SYSTEM_VERSION 1)
@@ -535,7 +571,7 @@ if(NOT MSVC)
 
     add_custom_command(
       TARGET firmware POST_BUILD
-      COMMAND arm-none-eabi-objcopy -O binary firmware.elf firmware.bin
+      COMMAND ${FIRMWARE_OBJCOPY} -O binary firmware.elf firmware.bin
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
 
@@ -548,7 +584,7 @@ if(NOT MSVC)
         )
     else()
       add_custom_target(firmware-size
-        COMMAND arm-none-eabi-size -A firmware.elf
+        COMMAND ${FIRMWARE_SIZE} -A firmware.elf
         DEPENDS firmware
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
@@ -578,3 +614,8 @@ if(NOT MSVC)
   PrintTargetReport("firmware")
 
 endif(NOT MSVC)
+
+# Include the lua subdirectory after CMAKE_C_COMPILER has been
+# set. Otherwise, the custom commands it includes will use the
+# default CMAKE_C_COMPILER instead of the one we set manually
+add_subdirectory(lua)

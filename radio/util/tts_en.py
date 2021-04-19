@@ -2,18 +2,18 @@
 
 # English language sounds configuration
 
-from tts_common import filename, NO_ALTERNATE, PROMPT_SYSTEM_BASE, PROMPT_CUSTOM_BASE
+from tts_common import filename
 
 
 systemSounds = []
 sounds = []
 
 for i in range(100):
-    systemSounds.append((str(i), filename(PROMPT_SYSTEM_BASE + i)))
+    systemSounds.append((str(i), filename(i)))
 for i in range(9):
-    systemSounds.append((str(100 * (i + 1)), filename(PROMPT_SYSTEM_BASE + 100 + i)))
+    systemSounds.append((str(100 * (i + 1)), filename(100 + i)))
 for i, s in enumerate(["thousand", "and", "minus", "point"]):
-    systemSounds.append((s, filename(PROMPT_SYSTEM_BASE + 109 + i)))
+    systemSounds.append((s, filename(109 + i)))
 for i, (s, f) in enumerate([("volt", "volt0"), ("volts", "volt1"),
                             ("amp", "amp0"), ("amps", "amp1"),
                             ("milliamp", "mamp0"), ("milliamps", "mamp1"),
@@ -38,41 +38,49 @@ for i, (s, f) in enumerate([("volt", "volt0"), ("volts", "volt1"),
                             ("milliliter", "ml0"), ("milliliters", "ml1"),
                             ("fluid ounce", "founce0"), ("fluid ounces", "founce1"),
                             ("milliliter per minute", "mlpm0"), ("milliliters per minute", "mlpm1"),
+                            ("hertz", "hertz0"), ("hertz", "hertz1"),
+                            ("milisecond", "ms0"), ("miliseconds", "ms1"),
+                            ("microsecond", "us0"), ("microseconds", "us1"),
+                            ("kilometer", "km0"), ("kilometers", "km1"),
                             ("hour", "hour0"), ("hours", "hour1"),
                             ("minute", "minute0"), ("minutes", "minute1"),
                             ("second", "second0"), ("seconds", "second1"),
                             ]):
-    systemSounds.append((s, filename(f, PROMPT_SYSTEM_BASE + 115 + i)))
+    systemSounds.append((s, filename(f)))
 for i, s in enumerate(["point zero", "point one", "point two", "point three",
                        "point four", "point five", "point six",
                        "point seven", "point eight", "point nine"]):
-    systemSounds.append((s, filename(PROMPT_SYSTEM_BASE + 167 + i)))
-for s, f, a in [("trim center", "midtrim", 495),
-                ("maximum trim reached", "maxtrim", NO_ALTERNATE),
-                ("minimum trim reached", "mintrim", NO_ALTERNATE),
-                ("timer 1 elapsed", "timovr1", NO_ALTERNATE),
-                ("timer 2 elapsed", "timovr2", NO_ALTERNATE),
-                ("timer 3 elapsed", "timovr3", NO_ALTERNATE),
-                ("transmitter battery low", "lowbatt", 485),
-                ("inactivity alarm", "inactiv", 486),
-                ("throttle warning", "thralert", 481),
-                ("switch warning", "swalert", 482),
-                ("bad eeprom", "eebad", 483),
-                ("Welcome to open tea ex!", "hello", 480),
-                ("RF signal, low", "rssi_org", NO_ALTERNATE),
-                ("RF signal, critical", "rssi_red", NO_ALTERNATE),
-                ("radio antenna defective", "swr_red", NO_ALTERNATE),
-                ("telemetry lost", "telemko", NO_ALTERNATE),
-                ("telemetry recovered", "telemok", NO_ALTERNATE),
-                ("trainer signal lost", "trainko", NO_ALTERNATE),
-                ("trainer signal recovered", "trainok", NO_ALTERNATE),
-                ("sensor lost", "sensorko", NO_ALTERNATE),
-                ("servo overload", "servoko", NO_ALTERNATE),
-                ("power overload", "rxko", NO_ALTERNATE),
-                ("receiver still connected", "modelpwr", NO_ALTERNATE),
-                ]:
-    systemSounds.append((s, filename(f, a)))
-for i, (s, f) in enumerate([("gear!, up!", "gearup"),
+    systemSounds.append((s, filename(167 + i)))
+for s, f in [("trim center", "midtrim"),
+             ("maximum trim reached", "maxtrim"),
+             ("minimum trim reached", "mintrim"),
+             ("timer 1 elapsed", "timovr1"),
+             ("timer 2 elapsed", "timovr2"),
+             ("timer 3 elapsed", "timovr3"),
+             ("transmitter battery low", "lowbatt"),
+             ("inactivity alarm", "inactiv"),
+             ("throttle warning", "thralert"),
+             ("switch warning", "swalert"),
+             ("bad eeprom", "eebad"),
+             ("Welcome to open tea ex!", "hello"),
+             ("RF signal, low", "rssi_org"),
+             ("RF signal, critical", "rssi_red"),
+             ("radio antenna defective", "swr_red"),
+             ("telemetry lost", "telemko"),
+             ("telemetry recovered", "telemok"),
+             ("trainer signal lost", "trainko"),
+             ("trainer signal recovered", "trainok"),
+             ("sensor lost", "sensorko"),
+             ("servo overload", "servoko"),
+             ("power overload", "rxko"),
+             ("receiver still connected", "modelpwr"),
+             ]:
+    systemSounds.append((s, filename(f)))
+for i, (s, f) in enumerate([("armed", "armed"),
+                            ("disarmed", "disarm"),
+                            ("throttle  cut", "thrcut"),
+                            ("throttle  active", "thract"),
+                            ("gear!, up!", "gearup"),
                             ("gear!, down!", "geardn"),
                             ("flaps!, up!", "flapup"),
                             ("flaps!, down!", "flapdn"),
@@ -88,6 +96,8 @@ for i, (s, f) in enumerate([("gear!, up!", "gearup"),
                             ("crow!, off!", "crowof"),
                             ("rf. signal!, low!", "siglow"),
                             ("rf. signal!, critical!", "sigcrt"),
+                            ("LQ", "lq"),
+                            ("RF mode", "rfmode"),
                             ("high. speed. mode!, active", "spdmod"),
                             ("thermal. mode!, on", "thmmod"),
                             ("normal. mode!, on", "nrmmod"),
@@ -117,5 +127,13 @@ for i, (s, f) in enumerate([("gear!, up!", "gearup"),
                             ("flight mode thermal", "fm-thm"),
                             ("flight mode thermal left", "fm-thl"),
                             ("flight mode thermal right", "fm-thr"),
+                            ("flight mode stabilize", "fm-stb"),
+                            ("flight mode horizon", "fm-hor"),
+                            ("flight mode angle", "fm-ang"),
+                            ("flight mode idle up 1", "fm-id1"),
+                            ("flight mode idle up 2", "fm-id2"),
+                            ("low rate", "ratlow"),
+                            ("medium rate", "ratmed"),
+                            ("high rate", "rathi"),
                             ]):
-    sounds.append((s, filename(f, PROMPT_CUSTOM_BASE + i)))
+    sounds.append((s, filename(f)))

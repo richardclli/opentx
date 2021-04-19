@@ -22,6 +22,8 @@
 #include "opentx.h"
 #include "libopenui.h"
 #include "io/frsky_firmware_update.h"
+#include "io/multi_firmware_update.h"
+#include "io/bootloader_flash.h"
 
 RadioSdManagerPage::RadioSdManagerPage() :
   PageTab(SD_IS_HC() ? STR_SDHC_CARD : STR_SD_CARD, ICON_RADIO_SD_MANAGER)
@@ -50,7 +52,7 @@ class FilePreview : public Window
     }
 
 #if defined(DEBUG_WINDOWS)
-    virtual std::string getName()
+    std::string getName() const override
     {
       return "FilePreview";
     }
@@ -85,14 +87,25 @@ class FilePreview : public Window
     BitmapBuffer *bitmap = nullptr;
 };
 
-class FlashModuleDialog: public FullScreenDialog
+template <class T>
+class FlashDialog: public FullScreenDialog
 {
   public:
-    FlashModuleDialog(ModuleIndex module):
+    explicit FlashDialog(const T & device):
       FullScreenDialog(WARNING_TYPE_INFO, "Flash device"),
-      device(module),
-      progress(this, {100, 100, 100, 15})
+      device(device),
+      progress(this, {LCD_W / 2 - 50, LCD_H / 2, 100, 15})
     {
+    }
+
+    void deleteLater(bool detach = true, bool trash = true) override
+    {
+      if (_deleted)
+        return;
+
+      progress.deleteLater(true, false);
+
+      FullScreenDialog::deleteLater(detach, trash);
     }
 
     void flash(const char * filename)
@@ -100,13 +113,13 @@ class FlashModuleDialog: public FullScreenDialog
       device.flashFirmware(filename, [=](const char * title, const char * message, int count, int total) -> void {
           setMessage(message);
           progress.setValue(total > 0 ? count * 100 / total : 0);
-          mainWindow.run(false);
+          MainWindow::instance()->run(false);
       });
       deleteLater();
     }
 
   protected:
-    FrskyDeviceFirmwareUpdate device;
+    T device;
     Progress progress;
 };
 
@@ -159,13 +172,39 @@ void RadioSdManagerPage::build(FormWindow * window)
 
     for (auto name: files) {
       auto button = new TextButton(window, grid.getLabelSlot(), name, [=]() -> uint8_t {
-          auto menu = new Menu();
+          auto menu = new Menu(window);
           const char *ext = getFileExtension(name.data());
           if (ext) {
             if (!strcasecmp(ext, SOUNDS_EXT)) {
               menu->addLine(STR_PLAY_FILE, [=]() {
                   audioQueue.stopAll();
                   audioQueue.playFile(getFullPath(name), 0, ID_PLAY_FROM_SD_MANAGER);
+              });
+            }
+#if defined(MULTIMODULE) && !defined(DISABLE_MULTI_UPDATE)
+            if (!READ_ONLY() && !strcasecmp(ext, MULTI_FIRMWARE_EXT)) {
+              MultiFirmwareInformation information;
+              if (information.readMultiFirmwareInformation(name.data()) == nullptr) {
+#if defined(INTERNAL_MODULE_MULTI)
+                menu->addLine(STR_FLASH_INTERNAL_MULTI, [=]() {
+                    MultiDeviceFirmwareUpdate deviceFirmwareUpdate(INTERNAL_MODULE, MULTI_TYPE_MULTIMODULE);
+                    auto dialog = new FlashDialog<MultiDeviceFirmwareUpdate>(deviceFirmwareUpdate);
+                    dialog->flash(getFullPath(name));
+                });
+#endif
+                menu->addLine(STR_FLASH_EXTERNAL_MULTI, [=]() {
+                    MultiDeviceFirmwareUpdate deviceFirmwareUpdate(EXTERNAL_MODULE, MULTI_TYPE_MULTIMODULE);
+                    auto dialog = new FlashDialog<MultiDeviceFirmwareUpdate>(deviceFirmwareUpdate);
+                    dialog->flash(getFullPath(name));
+                });
+              }
+            }
+#endif
+            else if (!READ_ONLY() && !strcasecmp(ext, ELRS_FIRMWARE_EXT)) {
+              menu->addLine(STR_FLASH_EXTERNAL_ELRS, [=]() {
+                  MultiDeviceFirmwareUpdate deviceFirmwareUpdate(EXTERNAL_MODULE, MULTI_TYPE_ELRS);
+                  auto dialog = new FlashDialog<MultiDeviceFirmwareUpdate>(deviceFirmwareUpdate);
+                  dialog->flash(getFullPath(name));
               });
             }
             else if (isExtensionMatching(ext, BITMAPS_EXT)) {
@@ -176,19 +215,31 @@ void RadioSdManagerPage::build(FormWindow * window)
                   // TODO
               });
             }
+            if (!READ_ONLY() && !strcasecmp(ext, FIRMWARE_EXT)) {
+              if (isBootloader(name.data())) {
+                menu->addLine(STR_FLASH_BOOTLOADER, [=]() {
+                    BootloaderFirmwareUpdate bootloaderFirmwareUpdate;
+                    auto dialog = new FlashDialog<BootloaderFirmwareUpdate>(bootloaderFirmwareUpdate);
+                    dialog->flash(getFullPath(name));
+                });
+              }
+            }
             else if (!READ_ONLY() && !strcasecmp(ext, SPORT_FIRMWARE_EXT)) {
               if (HAS_SPORT_UPDATE_CONNECTOR()) {
                 menu->addLine(STR_FLASH_EXTERNAL_DEVICE, [=]() {
-                    auto dialog = new FlashModuleDialog(SPORT_MODULE);
+                    FrskyDeviceFirmwareUpdate deviceFirmwareUpdate(SPORT_MODULE);
+                    auto dialog = new FlashDialog<FrskyDeviceFirmwareUpdate>(deviceFirmwareUpdate);
                     dialog->flash(getFullPath(name));
                 });
               }
               menu->addLine(STR_FLASH_INTERNAL_MODULE, [=]() {
-                  auto dialog = new FlashModuleDialog(INTERNAL_MODULE);
+                  FrskyDeviceFirmwareUpdate deviceFirmwareUpdate(INTERNAL_MODULE);
+                  auto dialog = new FlashDialog<FrskyDeviceFirmwareUpdate>(deviceFirmwareUpdate);
                   dialog->flash(getFullPath(name));
               });
               menu->addLine(STR_FLASH_EXTERNAL_MODULE, [=]() {
-                  auto dialog = new FlashModuleDialog(EXTERNAL_MODULE);
+                  FrskyDeviceFirmwareUpdate deviceFirmwareUpdate(EXTERNAL_MODULE);
+                  auto dialog = new FlashDialog<FrskyDeviceFirmwareUpdate>(deviceFirmwareUpdate);
                   dialog->flash(getFullPath(name));
               });
             }
@@ -224,8 +275,10 @@ void RadioSdManagerPage::build(FormWindow * window)
           }
           return 0;
       }, 0);
-      button->setFocusHandler([=]() {
+      button->setFocusHandler([=](bool active) {
+        if (active) {
           preview->setFile(getFullPath(name));
+        }
       });
       grid.nextLine();
     }
@@ -244,11 +297,11 @@ bool menuRadioSdManagerInfo(event_t event)
   lcdDrawText(100, 2*FH, SD_IS_HC() ? STR_SDHC_CARD : STR_SD_CARD);
 
   lcdDrawText(MENUS_MARGIN_LEFT, 3*FH, STR_SD_SIZE);
-  lcdDrawNumber(100, 3*FH, sdGetSize(), LEFT, 0, NULL, "M");
+  lcdDrawNumber(100, 3*FH, sdGetSize(), LEFT, 0, nullptr, "M");
 
   lcdDrawText(MENUS_MARGIN_LEFT, 4*FH, STR_SD_SECTORS);
 #if defined(SD_GET_FREE_BLOCKNR)
-  lcdDrawNumber(100, 4*FH, SD_GET_FREE_BLOCKNR()/1000, LEFT, 0, NULL, "/");
+  lcdDrawNumber(100, 4*FH, SD_GET_FREE_BLOCKNR()/1000, LEFT, 0, nullptr, "/");
   lcdDrawNumber(150, 4*FH, sdGetNoSectors()/1000, LEFT);
 #else
   lcdDrawNumber(100, 4*FH, sdGetNoSectors()/1000, LEFT, 0, NULL, "k");

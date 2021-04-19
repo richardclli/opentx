@@ -24,7 +24,8 @@
 
 #define SET_DIRTY() storageDirty(EE_MODEL)
 
-class CurveEditWindow : public Page {
+class CurveEditWindow : public Page
+{
   public:
     explicit CurveEditWindow(uint8_t index):
       Page(ICON_MODEL_CURVES),
@@ -37,6 +38,7 @@ class CurveEditWindow : public Page {
   protected:
     uint8_t index;
     CurveEdit * curveEdit = nullptr;
+    CurveDataEdit * curveDataEdit = nullptr;
 
     void buildHeader(Window * window)
     {
@@ -85,7 +87,9 @@ class CurveEditWindow : public Page {
                          curve.type = newValue;
                        }
                        SET_DIRTY();
-                       curveEdit->update();
+                       curveEdit->updatePreview();
+                       curveDataEdit->clear();
+                       curveDataEdit->update();
                      }
                  });
 
@@ -107,22 +111,25 @@ class CurveEditWindow : public Page {
                                        }
                                        curve.points = newValue;
                                        SET_DIRTY();
-                                       curveEdit->update();
+                                       curveEdit->updatePreview();
+                                       curveDataEdit->clear();
+                                       curveDataEdit->update();
                                      }
                                  });
       edit->setSuffix(STR_PTS);
       grid.nextLine();
 
       // Smooth
-      new StaticText(window, grid.getFieldSlot(), STR_SMOOTH);
-      grid.nextLine();
-      new CheckBox(window, grid.getFieldSlot(), GET_DEFAULT(g_model.curves[index].smooth),
+      new StaticText(window, grid.getFieldSlot(2, 0), STR_SMOOTH);
+      new CheckBox(window, grid.getFieldSlot(2, 1), GET_DEFAULT(g_model.curves[index].smooth),
                    [=](int32_t newValue) {
                        g_model.curves[index].smooth = newValue;
                        SET_DIRTY();
-                       curveEdit->update();
+                       curveEdit->updatePreview();
                    });
       grid.nextLine();
+
+      curveDataEdit = new CurveDataEdit(window, {0, grid.getWindowHeight(), coord_t(LCD_W - curveWidth - PAGE_PADDING - 1), window->height() -  grid.getWindowHeight() - PAGE_PADDING}, index, curveEdit);
     }
 #else
     void buildBody(FormWindow * window)
@@ -274,12 +281,12 @@ void ModelCurvesPage::build(FormWindow * window, int8_t focusIndex)
       // Curve drawing
       Button * button = new CurveButton(window, grid.getFieldSlot(), index);
       button->setPressHandler([=]() -> uint8_t {
-          Menu * menu = new Menu();
+          Menu * menu = new Menu(window);
           menu->addLine(STR_EDIT, [=]() {
               editCurve(window, index);
           });
           menu->addLine(STR_CURVE_PRESET, [=]() {
-              Menu * menu = new Menu();
+              Menu * menu = new Menu(window);
               for (int angle = -45; angle <= 45; angle += 15) {
                 char label[16];
                 strAppend(strAppendSigned(label, angle), "@");
@@ -311,7 +318,7 @@ void ModelCurvesPage::build(FormWindow * window, int8_t focusIndex)
       });
 
       if (focusIndex == index) {
-        button->setFocus();
+        button->setFocus(SET_FOCUS_DEFAULT);
       }
 
       grid.spacer(button->height() + 5);

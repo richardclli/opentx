@@ -68,27 +68,20 @@ bool displayGaugesTelemetryScreen(TelemetryScreenData & screen)
       barMin = calc100toRESX(barMin);
       barMax = calc100toRESX(barMax);
     }
-    if (source && barMax > barMin) {
+    if (source) {
       uint8_t y = barHeight+6+i*(barHeight+6);
       drawSource(0, y+barHeight/2-3, source, SMLSIZE);
       lcdDrawRect(BAR_LEFT, y, BAR_WIDTH+1, barHeight+2);
       getvalue_t value = getValue(source);
-
       uint8_t thresholdX = 0;
-
-
-      uint8_t width = barCoord(value, barMin, barMax);
-
+      uint8_t width = (barMin < barMax) ? barCoord(value, barMin, barMax) : 99 - barCoord(value, barMax, barMin);
       uint8_t barShade = SOLID;
-
       lcdDrawFilledRect(BAR_LEFT+1, y+1, width, barHeight, barShade);
-
       for (uint8_t j=24; j<99; j+=25) {
         if (j>thresholdX || j>width) {
           lcdDrawSolidVerticalLine(j*BAR_WIDTH/100+BAR_LEFT+1, y+1, barHeight);
         }
       }
-
       if (thresholdX) {
         lcdDrawVerticalLine(BAR_LEFT+1+thresholdX, y-2, barHeight+3, DOTTED);
         lcdDrawSolidHorizontalLine(BAR_LEFT+thresholdX, y-2, 3);
@@ -206,91 +199,3 @@ bool displayTelemetryScreen()
 
   return true;
 }
-
-enum NavigationDirection {
-  none,
-  up,
-  down
-};
-#define decrTelemetryScreen() direction = up
-#define incrTelemetryScreen() direction = down
-
-#if defined(NAVIGATION_XLITE)
-#define EVT_KEY_PREVIOUS_VIEW          EVT_KEY_LONG(KEY_LEFT)
-#define EVT_KEY_NEXT_VIEW              EVT_KEY_LONG(KEY_RIGHT)
-#elif defined(NAVIGATION_X7)
-#define EVT_KEY_PREVIOUS_VIEW          EVT_KEY_LONG(KEY_PAGE)
-#define EVT_KEY_NEXT_VIEW              EVT_KEY_BREAK(KEY_PAGE)
-#else
-#define EVT_KEY_PREVIOUS_VIEW          EVT_KEY_FIRST(KEY_UP)
-#define EVT_KEY_NEXT_VIEW              EVT_KEY_FIRST(KEY_DOWN)
-#endif
-
-void menuViewTelemetryFrsky(event_t event)
-{
-  enum NavigationDirection direction = none;
-
-  switch (event) {
-    case EVT_KEY_FIRST(KEY_EXIT):
-#if defined(LUA)
-    case EVT_KEY_LONG(KEY_EXIT):
-#endif
-      killEvents(event);
-      chainMenu(menuMainView);
-      break;
-
-    case EVT_KEY_PREVIOUS_VIEW:
-#if defined(PCBXLITE)
-      if (IS_SHIFT_PRESSED()) {
-        decrTelemetryScreen();
-      }
-#else
-      if (IS_KEY_LONG(EVT_KEY_PREVIOUS_VIEW)) {
-        killEvents(event);
-      }
-      decrTelemetryScreen();
-#endif
-      break;
-
-    case EVT_KEY_NEXT_VIEW:
-#if defined(PCBXLITE)
-      if (IS_SHIFT_PRESSED()) {
-        incrTelemetryScreen();
-      }
-#else
-      incrTelemetryScreen();
-#endif
-      break;
-
-    case EVT_KEY_LONG(KEY_ENTER):
-      killEvents(event);
-      POPUP_MENU_ADD_ITEM(STR_RESET_TELEMETRY);
-      POPUP_MENU_ADD_ITEM(STR_RESET_FLIGHT);
-      POPUP_MENU_START(onMainViewMenu);
-      break;
-  }
-
-  for (int i=0; i<=TELEMETRY_SCREEN_TYPE_MAX; i++) {
-    if (direction == up) {
-      if (s_frsky_view-- == 0)
-        s_frsky_view = TELEMETRY_VIEW_MAX;
-    }
-    else if (direction == down) {
-      if (s_frsky_view++ == TELEMETRY_VIEW_MAX)
-        s_frsky_view = 0;
-    }
-    else {
-      direction = down;
-    }
-    if (displayTelemetryScreen()) {
-      return;
-    }
-  }
-
-  drawTelemetryTopBar();
-  lcdDrawText(2*FW, 3*FH, "No Telemetry Screens");
-  displayRssiLine();
-}
-
-#undef EVT_KEY_PREVIOUS_VIEW
-#undef EVT_KEY_NEXT_VIEW

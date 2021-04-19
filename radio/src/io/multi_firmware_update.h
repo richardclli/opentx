@@ -18,8 +18,7 @@
  * GNU General Public License for more details.
  */
 
-#ifndef OPENTX_MULTI_FIRMWARE_H
-#define OPENTX_MULTI_FIRMWARE_H
+#pragma once
 
 #include "ff.h"
 
@@ -35,15 +34,18 @@
    For example: REM multi-stm-bcsid-01020176
 */
 
-class MultiFirmwareInformation {
+class MultiFirmwareInformation
+{
   public:
-    enum MultiFirmwareBoardType {
+    enum MultiFirmwareBoardType
+    {
       FIRMWARE_MULTI_AVR = 0,
       FIRMWARE_MULTI_STM,
       FIRMWARE_MULTI_ORX,
     };
 
-    enum MultiFirmwareTelemetryType {
+    enum MultiFirmwareTelemetryType
+    {
       FIRMWARE_MULTI_TELEM_NONE = 0,
       FIRMWARE_MULTI_TELEM_MULTI_STATUS,    // erSkyTX
       FIRMWARE_MULTI_TELEM_MULTI_TELEMETRY, // OpenTX
@@ -71,12 +73,12 @@ class MultiFirmwareInformation {
 
     bool isMultiInternalFirmware() const
     {
-      return (boardType == FIRMWARE_MULTI_STM && telemetryInversion == false && optibootSupport == true && bootloaderCheck == true && telemetryType == FIRMWARE_MULTI_TELEM_MULTI_TELEMETRY);
+      return (boardType == FIRMWARE_MULTI_STM && optibootSupport && bootloaderCheck && telemetryType == FIRMWARE_MULTI_TELEM_MULTI_TELEMETRY);
     }
 
     bool isMultiExternalFirmware() const
     {
-      return (telemetryInversion == true && optibootSupport == true && bootloaderCheck == true && telemetryType == FIRMWARE_MULTI_TELEM_MULTI_TELEMETRY);
+      return ((telemetryInversion || boardType == FIRMWARE_MULTI_STM ) && optibootSupport && bootloaderCheck && telemetryType == FIRMWARE_MULTI_TELEM_MULTI_TELEMETRY);
     }
 
     const char * readMultiFirmwareInformation(const char * filename);
@@ -101,6 +103,24 @@ class MultiFirmwareInformation {
     const char * readV2Signature(const char * buffer);
 };
 
-bool multiFlashFirmware(uint8_t module, const char * filename);
+enum MultiModuleType
+{
+  MULTI_TYPE_MULTIMODULE = 0,
+  MULTI_TYPE_ELRS,
+};
 
-#endif //OPENTX_MULTI_FIRMWARE_H
+class MultiDeviceFirmwareUpdate
+{
+  public:
+    explicit MultiDeviceFirmwareUpdate(ModuleIndex module, MultiModuleType type):
+      module(module),
+      type(type)
+    {
+    }
+
+    bool flashFirmware(const char * filename, ProgressHandler progressHandler);
+
+  protected:
+    ModuleIndex module;
+    MultiModuleType type;
+};

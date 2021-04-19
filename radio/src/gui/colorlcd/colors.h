@@ -24,6 +24,7 @@
 #include "libopenui_config.h"
 
 #define WHITE                          RGB(0xFF, 0xFF, 0xFF)
+#define LIGHTWHITE                     RGB(238, 234, 238)
 #define BLACK                          RGB(0, 0, 0)
 #define YELLOW                         RGB(0xF0, 0xD0, 0x10)
 #define BLUE                           RGB(0x30, 0xA0, 0xE0)
@@ -34,16 +35,20 @@
 #define RED                            RGB(229, 32, 30)
 #define DARKRED                        RGB(160, 0, 6)
 #define GREEN                          RGB(25, 150, 50)
+#define LIGHTBROWN                     RGB(156, 109, 32)
+#define DARKBROWN                      RGB(106, 72, 16)
+#define BRIGHTGREEN                    RGB(0, 180, 60)
+#define ORANGE                         RGB(229, 100, 30)
 
 #define TEXT_STATUSBAR_COLOR           COLOR(TEXT_STATUSBAR_COLOR_INDEX)
 #define LINE_COLOR                     COLOR(LINE_COLOR_INDEX)
 #define HEADER_SEPARATOR_COLOR         COLOR(HEADER_SEPARATOR_COLOR_INDEX)
-#define MENU_BGCOLOR             COLOR(MENU_BGCOLOR_INDEX)
-#define MENU_COLOR               COLOR(MENU_COLOR_INDEX)
+#define MENU_BGCOLOR                   COLOR(MENU_BGCOLOR_INDEX)
+#define MENU_COLOR                     COLOR(MENU_COLOR_INDEX)
 #define MENU_TITLE_DISABLE_COLOR       COLOR(MENU_TITLE_DISABLE_COLOR_INDEX)
 #define HEADER_COLOR                   COLOR(HEADER_COLOR_INDEX)
 #define ALARM_COLOR                    COLOR(ALARM_COLOR_INDEX)
-#define HIGHLIGHT_COLOR                  COLOR(HIGHLIGHT_COLOR_INDEX)
+#define HIGHLIGHT_COLOR                COLOR(HIGHLIGHT_COLOR_INDEX)
 #define TEXT_DISABLE_COLOR             COLOR(TEXT_DISABLE_COLOR_INDEX)
 #define CURVE_COLOR                    COLOR(CURVE_COLOR_INDEX)
 #define CURVE_CURSOR_COLOR             COLOR(CURVE_CURSOR_COLOR_INDEX)
@@ -60,5 +65,6 @@
 #define BARGRAPH2_COLOR                COLOR(BARGRAPH2_COLOR_INDEX)
 #define BARGRAPH_BGCOLOR               COLOR(BARGRAPH_BGCOLOR_INDEX)
 #define SCROLLBOX_COLOR                COLOR(SCROLLBOX_COLOR_INDEX)
+#define BATTERY_CHARGE_COLOR           COLOR(BATTERY_CHARGE_COLOR_INDEX)
 
 #endif // _COLORS_H_

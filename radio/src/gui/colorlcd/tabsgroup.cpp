@@ -33,6 +33,7 @@ TabsGroupHeader::TabsGroupHeader(TabsGroup * parent, uint8_t icon):
   back(this, { 0, 0, MENU_HEADER_BUTTON_WIDTH, MENU_HEADER_BUTTON_WIDTH }, ICON_BACK,
        [=]() -> uint8_t {
          parent->deleteLater();
+         ViewMain::instance()->setFocus((SET_FOCUS_DEFAULT));
          return 1;
        }, NO_FOCUS),
 #endif
@@ -41,17 +42,9 @@ TabsGroupHeader::TabsGroupHeader(TabsGroup * parent, uint8_t icon):
 {
 }
 
-TabsGroupHeader::~TabsGroupHeader()
-{
-#if defined(HARDWARE_TOUCH)
-  back.detach();
-#endif
-  carousel.detach();
-}
-
 void TabsGroupHeader::paint(BitmapBuffer * dc)
 {
-  static_cast<ThemeBase *>(theme)->drawMenuBackground(dc, icon, title);
+  OpenTxTheme::instance()->drawMenuBackground(dc, icon, title);
 }
 
 TabsCarousel::TabsCarousel(Window * parent, TabsGroup * menu):
@@ -67,7 +60,7 @@ void TabsCarousel::updateInnerWidth()
 
 void TabsCarousel::paint(BitmapBuffer * dc)
 {
-  static_cast<ThemeBase *>(theme)->drawMenuHeader(dc, menu->tabs, currentIndex);
+  OpenTxTheme::instance()->drawMenuHeader(dc, menu->tabs, currentIndex);
 }
 
 #if defined(HARDWARE_TOUCH)
@@ -81,24 +74,17 @@ bool TabsCarousel::onTouchEnd(coord_t x, coord_t y)
 #endif
 
 TabsGroup::TabsGroup(uint8_t icon):
-  Window(&mainWindow, { 0, 0, LCD_W, LCD_H }, OPAQUE),
+  Window(MainWindow::instance(), { 0, 0, LCD_W, LCD_H }, OPAQUE),
   header(this, icon),
-  body(this, { 0, MENU_BODY_TOP, LCD_W, MENU_BODY_HEIGHT })
+  body(this, { 0, MENU_BODY_TOP, LCD_W, MENU_BODY_HEIGHT }, FORM_FORWARD_FOCUS)
 {
 }
 
 TabsGroup::~TabsGroup()
 {
-#if defined(HARDWARE_TOUCH)
-  Keyboard::hide();
-#endif
-
   for (auto tab: tabs) {
     delete tab;
   }
-
-  header.detach();
-  body.detach();
 }
 
 void TabsGroup::addTab(PageTab * page)
@@ -140,7 +126,7 @@ void TabsGroup::setVisibleTab(PageTab * tab)
     currentTab = tab;
     tab->build(&body);
     if (!focusWindow)
-      setFocus();
+      setFocus(SET_FOCUS_DEFAULT);
     header.setTitle(tab->title.c_str());
     invalidate();
   }
@@ -163,14 +149,18 @@ void TabsGroup::onEvent(event_t event)
     uint8_t current = header.carousel.getCurrentIndex() + 1;
     setCurrentTab(current >= tabs.size() ? 0 : current);
   }
+#if defined(KEYS_GPIO_REG_UP)
+  else if (event == EVT_KEY_BREAK(KEY_PGUP)) {
+#else
   else if (event == EVT_KEY_LONG(KEY_PGDN)) {
+#endif
     killEvents(event);
     uint8_t current = header.carousel.getCurrentIndex();
     setCurrentTab(current == 0 ? tabs.size() - 1 : current - 1);
   }
   else if (event == EVT_KEY_LONG(KEY_EXIT) || event == EVT_KEY_BREAK(KEY_EXIT)) {
     killEvents(event);
-    ViewMain::instance->setFocus();
+    ViewMain::instance()->setFocus(SET_FOCUS_DEFAULT);
     deleteLater();
   }
   else if (parent) {
@@ -187,10 +177,8 @@ void TabsGroup::paint(BitmapBuffer * dc)
 #if defined(HARDWARE_TOUCH)
 bool TabsGroup::onTouchEnd(coord_t x, coord_t y)
 {
-  if (Window::onTouchEnd(x, y))
-    return true;
-
   Keyboard::hide();
+  Window::onTouchEnd(x, y);
   return true;
 }
 #endif

@@ -74,8 +74,12 @@ void ModelFlightModesPage::build(FormWindow * window)
 
     FormGridLayout grid;
     grid.setMarginRight(15);
-    grid.spacer();
+#if LCD_W > LCD_H
     grid.setLabelWidth(140);
+#else
+    grid.setLabelWidth(110);
+#endif
+    grid.spacer();
 
     char label[16];
     getFlightModeString(label, i+1);
@@ -130,11 +134,11 @@ void ModelFlightModesPage::build(FormWindow * window)
     new NumberEdit(group, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
                           GET_DEFAULT(g_model.flightModeData[i].fadeIn),
                           SET_VALUE(g_model.flightModeData[i].fadeIn, newValue),
-                          PREC1);
+                          0, PREC1);
     new NumberEdit(group, grid.getFieldSlot(2, 1), 0, DELAY_MAX,
                           GET_DEFAULT(g_model.flightModeData[i].fadeOut),
                           SET_VALUE(g_model.flightModeData[i].fadeOut, newValue),
-                          PREC1);
+                          0, PREC1);
     grid.nextLine();
 
     grid.spacer();

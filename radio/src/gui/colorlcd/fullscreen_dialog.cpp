@@ -22,41 +22,41 @@
 #include "mainwindow.h"
 #include "opentx.h"
 
-FullScreenDialog::FullScreenDialog(uint8_t type, std::string title, std::string message, std::string action, std::function<void(void)> confirmHandler):
-  FormGroup(&mainWindow, {0, 0, LCD_W, LCD_H}, OPAQUE),
+FullScreenDialog::FullScreenDialog(uint8_t type, std::string title, std::string message, std::string action, const std::function<void(void)> & confirmHandler):
+  FormGroup(MainWindow::instance(), {0, 0, LCD_W, LCD_H}, OPAQUE),
   type(type),
   title(std::move(title)),
   message(std::move(message)),
   action(std::move(action)),
   confirmHandler(confirmHandler)
-#if !defined(HARDWARE_TOUCH)
-  , previousFocus(focusWindow)
-#endif
 {
+  Layer::push(this);
+
 #if defined(HARDWARE_TOUCH)
-  new FabButton(this, LCD_W - 50, ALERT_BUTTON_TOP, ICON_NEXT,
+  new FabButton(this, LCD_W - 50, LCD_H - 50, ICON_NEXT,
                     [=]() -> uint8_t {
                       if (confirmHandler)
                         confirmHandler();
                       return 0;
                     });
 #endif
+
   bringToTop();
-  setFocus();
+  setFocus(SET_FOCUS_DEFAULT);
 }
 
 void FullScreenDialog::paint(BitmapBuffer * dc)
 {
-  static_cast<ThemeBase *>(theme)->drawBackground(dc);
+  OpenTxTheme::instance()->drawBackground(dc);
 
   dc->drawFilledRect(0, ALERT_FRAME_TOP, LCD_W, ALERT_FRAME_HEIGHT, SOLID, FOCUS_COLOR | OPACITY(8));
 
   if (type == WARNING_TYPE_ALERT || type == WARNING_TYPE_ASTERISK)
-    dc->drawBitmap(ALERT_BITMAP_LEFT, ALERT_BITMAP_TOP, static_cast<ThemeBase *>(theme)->asterisk);
+    dc->drawBitmap(ALERT_BITMAP_LEFT, ALERT_BITMAP_TOP, OpenTxTheme::instance()->asterisk);
   else if (type == WARNING_TYPE_INFO)
-    dc->drawBitmap(ALERT_BITMAP_LEFT, ALERT_BITMAP_TOP, static_cast<ThemeBase *>(theme)->busy);
+    dc->drawBitmap(ALERT_BITMAP_LEFT, ALERT_BITMAP_TOP, OpenTxTheme::instance()->busy);
   else // confirmation
-    dc->drawBitmap(ALERT_BITMAP_LEFT, ALERT_BITMAP_TOP, static_cast<ThemeBase *>(theme)->question);
+    dc->drawBitmap(ALERT_BITMAP_LEFT, ALERT_BITMAP_TOP, OpenTxTheme::instance()->question);
 
   if (type == WARNING_TYPE_ALERT) {
 #if defined(TRANSLATIONS_FR) || defined(TRANSLATIONS_IT) || defined(TRANSLATIONS_CZ)
@@ -113,19 +113,14 @@ void FullScreenDialog::checkEvents()
   }
 }
 
-void FullScreenDialog::deleteLater()
+void FullScreenDialog::deleteLater(bool detach, bool trash)
 {
-#if !defined(HARDWARE_TOUCH)
-  if (previousFocus) {
-    previousFocus->setFocus();
-  }
-#endif
-
   if (running) {
     running = false;
   }
   else {
-    Window::deleteLater();
+    Layer::pop(this);
+    Window::deleteLater(detach, trash);
   }
 }
 
@@ -150,10 +145,10 @@ void FullScreenDialog::runForever()
     WDG_RESET();
 
     RTOS_WAIT_MS(20);
-    mainWindow.run(false);
+    MainWindow::instance()->run(false);
   }
 
-  Window::deleteLater();
+  deleteLater();
 }
 
 void raiseAlert(const char * title, const char * msg, const char * action, uint8_t sound)

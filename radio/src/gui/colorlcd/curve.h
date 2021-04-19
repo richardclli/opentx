@@ -19,8 +19,7 @@
  */
 
 
-#ifndef _CURVE_H_
-#define _CURVE_H_
+#pragma once
 
 #include "window.h"
 
@@ -29,7 +28,8 @@ struct CurvePoint {
   LcdFlags flags;
 };
 
-class Curve: public Window {
+class Curve: public Window
+{
   friend class CurveEdit;
 
   public:
@@ -41,7 +41,7 @@ class Curve: public Window {
     }
 
 #if defined(DEBUG_WINDOWS)
-    std::string getName() override
+    std::string getName() const override
     {
       return "Curve";
     }
@@ -71,8 +71,7 @@ class Curve: public Window {
     void drawCurve(BitmapBuffer * dc);
     void drawPosition(BitmapBuffer * dc);
     void drawPoint(BitmapBuffer * dc, const CurvePoint & point);
-    coord_t getPointX(int x);
-    coord_t getPointY(int y);
+    coord_t getPointX(int x) const;
+    coord_t getPointY(int y) const;
 };
 
-#endif // _CURVE_H_

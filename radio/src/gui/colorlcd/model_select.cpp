@@ -99,7 +99,7 @@ void setCurrentCategory(unsigned int index)
   /*if (currentCategory->size() > 0)
     setCurrentModel(0);
   else
-    currentModel = NULL;*/
+    currentModel = nullptr;*/
 }
 #endif
 
@@ -211,17 +211,23 @@ class ModelSelectFooter: public Window {
       dc->drawSolidFilledRect(0, 0, width(), height(), DISABLE_COLOR);
       uint32_t size = sdGetSize() / 100;
       coord_t x = 7;
-      dc->drawMask(7, 4, modelselSdFreeBitmap, DEFAULT_COLOR);
-      x += modelselSdFreeBitmap->width() + 3;
+      if (modelselSdFreeBitmap) {
+        dc->drawMask(7, 4, modelselSdFreeBitmap, DEFAULT_COLOR);
+        x += modelselSdFreeBitmap->width() + 3;
+      }
       x = dc->drawNumber(x, 3, size, PREC1|FONT(XS), 0, nullptr, "GB");
       x += 20;
-      dc->drawMask(x, 4, modelselModelQtyBitmap, DEFAULT_COLOR);
-      x += modelselModelQtyBitmap->width() + 3;
+      if (modelselModelQtyBitmap) {
+        dc->drawMask(x, 4, modelselModelQtyBitmap, DEFAULT_COLOR);
+        x += modelselModelQtyBitmap->width() + 3;
+      }
       x = dc->drawNumber(x, 3, modelslist.getModelsCount(), FONT(XS));
       if (currentModel) {
         x += 20;
-        dc->drawMask(x, 4, modelselModelNameBitmap, DEFAULT_COLOR);
-        x += modelselModelNameBitmap->width() + 3;
+        if (modelselModelNameBitmap) {
+          dc->drawMask(x, 4, modelselModelNameBitmap, DEFAULT_COLOR);
+          x += modelselModelNameBitmap->width() + 3;
+        }
         dc->drawText(x, 3, currentModel->modelFilename, FONT(XS) | DEFAULT_COLOR);
       }
     }
@@ -257,13 +263,15 @@ class ModelCategoryPageBody: public FormWindow {
       for (auto & model: * category) {
         auto button = new ModelButton(this, {x, y, MODEL_SELECT_CELL_WIDTH, MODEL_SELECT_CELL_HEIGHT}, model, nullptr);
 
-        button->setFocusHandler([=] {
+        button->setFocusHandler([=](bool active) {
+          if (active) {
             footer->setCurrentModel(model);
+          }
         });
 
         button->setPressHandler([=]() -> uint8_t {
             if (button->hasFocus()) {
-              Menu * menu = new Menu();
+              Menu * menu = new Menu(parent);
               if (model != modelslist.getCurrentModel()) {
                 menu->addLine(STR_SELECT_MODEL, [=]() {
                     // we store the latest changes if any
@@ -273,20 +281,12 @@ class ModelCategoryPageBody: public FormWindow {
                     loadModel(g_eeGeneral.currModelFilename, false);
                     storageDirty(EE_GENERAL);
                     storageCheck(true);
-                    // chainMenu(menuMainView);
-                    postModelLoad(true);
+
                     modelslist.setCurrentModel(model);
                     update(); // modelslist.getModelIndex(modelCell));
                 });
               }
-              menu->addLine(STR_CREATE_MODEL, [=]() {
-                  storageCheck(true);
-                  modelslist.setCurrentModel(modelslist.addModel(category, createModel()));
-#if defined(LUA)
-                  // chainMenu(menuModelWizard);
-#endif
-                  update(category->size() - 1);
-              });
+              menu->addLine(STR_CREATE_MODEL, getCreateModelAction());
               menu->addLine(STR_DUPLICATE_MODEL, [=]() {
                   char duplicatedFilename[LEN_MODEL_FILENAME + 1];
                   memcpy(duplicatedFilename, model->modelFilename, sizeof(duplicatedFilename));
@@ -302,7 +302,7 @@ class ModelCategoryPageBody: public FormWindow {
               // menu->addLine(STR_MOVE_MODEL);
               if (model != modelslist.getCurrentModel()) {
                 menu->addLine(STR_DELETE_MODEL, [=]() {
-                  new ConfirmDialog(STR_DELETE_MODEL, std::string(model->modelName, sizeof(model->modelName)).c_str(), [=] {
+                  new ConfirmDialog(parent, STR_DELETE_MODEL, std::string(model->modelName, sizeof(model->modelName)).c_str(), [=] {
                       modelslist.removeModel(category, model);
                       update(index > 0 ? index - 1 : 0);
                   });
@@ -310,13 +310,13 @@ class ModelCategoryPageBody: public FormWindow {
               }
             }
             else {
-              button->setFocus();
+              button->setFocus(SET_FOCUS_DEFAULT);
             }
             return 1;
         });
 
         if (selected == index) {
-          button->setFocus();
+          button->setFocus(SET_FOCUS_DEFAULT);
           footer->setCurrentModel(model);
         }
 
@@ -335,11 +335,55 @@ class ModelCategoryPageBody: public FormWindow {
       }
 
       setInnerHeight(y);
+
+      if (category->empty()) {
+        setFocus();
+      }
     }
 
+#if defined(HARDWARE_KEYS)
+    void onEvent(event_t event) override
+    {
+      if (event == EVT_KEY_BREAK(KEY_ENTER)) {
+        Menu * menu = new Menu(this);
+        menu->addLine(STR_CREATE_MODEL, getCreateModelAction());
+        //TODO: create category?
+      }
+      else {
+        FormWindow::onEvent(event);
+      }
+    }
+#endif
+
+    void setFocus(uint8_t flag = SET_FOCUS_DEFAULT, Window * from = nullptr) override
+    {
+      if (category->empty()) {
+        // use Window::setFocus() to avoid forwarding focus to nowhere
+        // this crashes currently in libopenui
+        Window::setFocus(flag, from);
+      }
+      else {
+        FormWindow::setFocus(flag, from);
+      }
+    }
+
+  
   protected:
     ModelsCategory * category;
     ModelSelectFooter * footer;
+
+    std::function<void(void)> getCreateModelAction()
+    {
+      return [=]() {
+        storageCheck(true);
+        modelslist.setCurrentModel(modelslist.addModel(category, createModel()));
+#if defined(LUA)
+        // chainMenu(menuModelWizard);
+#endif
+        update(category->size() - 1);
+      };
+    }
+
 };
 
 class ModelCategoryPage: public PageTab {
@@ -366,6 +410,7 @@ ModelSelectMenu::ModelSelectMenu():
 {
   modelslist.load();
 
+  TRACE("TabsGroup: %p", this);
   for (auto category: modelslist.getCategories()) {
     addTab(new ModelCategoryPage(category));
   }

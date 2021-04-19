@@ -20,6 +20,8 @@
 
 #include "radio_hardware.h"
 #include "radio_calibration.h"
+#include "radio_diagkeys.h"
+#include "radio_diaganas.h"
 #include "opentx.h"
 
 #define SET_DIRTY() storageDirty(EE_GENERAL)
@@ -30,7 +32,7 @@
 #define SWITCH_TYPE_MAX(sw)            (SWITCH_3POS)
 #endif
 
-class SwitchDynamicLabel : public StaticText {
+class SwitchDynamicLabel: public StaticText {
   public:
     SwitchDynamicLabel(Window * parent, const rect_t & rect, uint8_t index):
       StaticText(parent, rect),
@@ -41,7 +43,12 @@ class SwitchDynamicLabel : public StaticText {
 
     std::string label()
     {
-      return TEXT_AT_INDEX(STR_VSRCRAW, (index + MIXSRC_FIRST_SWITCH - MIXSRC_Rud + 1)) + std::string(&"\300-\301"[lastpos], 1);
+      static const char switchPositions[] = {
+        CHAR_UP,
+        '-',
+        CHAR_DOWN
+      };
+      return TEXT_AT_INDEX(STR_VSRCRAW, (index + MIXSRC_FIRST_SWITCH - MIXSRC_Rud + 1)) + std::string(&switchPositions[lastpos], 1);
     }
 
     void update()
@@ -79,6 +86,67 @@ RadioHardwarePage::RadioHardwarePage():
 {
 }
 
+#if defined(BLUETOOTH)
+class BluetoothConfigWindow : public FormGroup
+{
+  public:
+    BluetoothConfigWindow(FormWindow * parent, const rect_t &rect) :
+      FormGroup(parent, rect, FORWARD_SCROLL | FORM_FORWARD_FOCUS)
+    {
+      update();
+    }
+
+    void update()
+    {
+      FormGridLayout grid;
+#if LCD_W > LCD_H
+      grid.setLabelWidth(180);
+#else
+      grid.setLabelWidth(130);
+#endif
+      clear();
+
+      new StaticText(this, grid.getLabelSlot(true), STR_MODE);
+      btMode = new Choice(this, grid.getFieldSlot(), STR_BLUETOOTH_MODES, BLUETOOTH_OFF, BLUETOOTH_TRAINER, GET_DEFAULT(g_eeGeneral.bluetoothMode), [=](int32_t newValue) {
+          g_eeGeneral.bluetoothMode = newValue;
+          update();
+          SET_DIRTY();
+          btMode->setFocus(SET_FOCUS_DEFAULT);
+      });
+      grid.nextLine();
+
+      if (g_eeGeneral.bluetoothMode != BLUETOOTH_OFF) {
+        // Pin code (displayed for information only, not editable)
+        if (g_eeGeneral.bluetoothMode == BLUETOOTH_TELEMETRY) {
+          new StaticText(this, grid.getLabelSlot(true), STR_BLUETOOTH_PIN_CODE);
+          new StaticText(this, grid.getFieldSlot(), "000000");
+          grid.nextLine();
+        }
+
+        // Local MAC
+        new StaticText(this, grid.getLabelSlot(true), STR_BLUETOOTH_LOCAL_ADDR);
+        new StaticText(this, grid.getFieldSlot(), bluetooth.localAddr[0] == '\0' ? "---" : bluetooth.localAddr);
+        grid.nextLine();
+
+        // Remote MAC
+        new StaticText(this, grid.getLabelSlot(true), STR_BLUETOOTH_DIST_ADDR);
+        new StaticText(this, grid.getFieldSlot(), bluetooth.distantAddr[0] == '\0' ? "---" : bluetooth.distantAddr);
+        grid.nextLine();
+
+        // BT radio name
+        new StaticText(this, grid.getLabelSlot(true), STR_NAME);
+        new TextEdit(this, grid.getFieldSlot(), g_eeGeneral.bluetoothName, LEN_BLUETOOTH_NAME);
+        grid.nextLine();
+      }
+
+      getParent()->moveWindowsTop(top() + 1, adjustHeight());
+    }
+
+  protected:
+    Choice * btMode = nullptr;
+};
+#endif
+
 void RadioHardwarePage::build(FormWindow * window)
 {
   FormGridLayout grid;
@@ -95,7 +163,7 @@ void RadioHardwarePage::build(FormWindow * window)
   calib->setPressHandler([=]() -> uint8_t {
       auto calibrationPage = new RadioCalibrationPage();
       calibrationPage->setCloseHandler([=]() {
-          calib->setFocus();
+          calib->setFocus(SET_FOCUS_DEFAULT);
       });
       return 0;
   });
@@ -116,7 +184,34 @@ void RadioHardwarePage::build(FormWindow * window)
   for (int i = 0; i < NUM_POTS; i++) {
     new StaticText(window, grid.getLabelSlot(true), TEXT_AT_INDEX(STR_VSRCRAW, (i + NUM_STICKS + 1)));
     new TextEdit(window, grid.getFieldSlot(2,0), g_eeGeneral.anaNames[i + NUM_STICKS], LEN_ANA_NAME);
-    new Choice(window, grid.getFieldSlot(2,1), STR_POTTYPES, POT_NONE, POT_WITHOUT_DETENT, GET_SET_BF(g_eeGeneral.potsConfig, 2 * i, 2));
+    new Choice(window, grid.getFieldSlot(2,1), STR_POTTYPES, POT_NONE, POT_WITHOUT_DETENT,
+               [=]() -> int {
+                   return bfGet<uint32_t>(g_eeGeneral.potsConfig, 2*i, 2);
+               },
+               [=](int newValue) {
+                   g_eeGeneral.potsConfig = bfSet<uint32_t>(g_eeGeneral.potsConfig, newValue, 2*i, 2);
+                   SET_DIRTY();
+               });
+    grid.nextLine();
+  }
+
+  // Sliders
+  new Subtitle(window, grid.getLineSlot(), STR_SLIDERS);
+  grid.nextLine();
+  for (int i = 0; i < NUM_SLIDERS; i++) {
+    new StaticText(window, grid.getLabelSlot(true), TEXT_AT_INDEX(STR_VSRCRAW, (i + NUM_STICKS + NUM_POTS + 1)));
+    new TextEdit(window, grid.getFieldSlot(2,0), g_eeGeneral.anaNames[i + NUM_STICKS], LEN_ANA_NAME);
+    new Choice(window, grid.getFieldSlot(2,1), STR_SLIDERTYPES, SLIDER_NONE, SLIDER_WITH_DETENT,
+               [=]() -> int {
+                   uint8_t mask = (0x01 << i);
+                   return (g_eeGeneral.slidersConfig & mask) >> i;
+               },
+               [=](int newValue) {
+                   uint8_t mask = (0x01 << i);
+                   g_eeGeneral.slidersConfig &= ~mask;
+                   g_eeGeneral.slidersConfig |= (newValue << i);
+                   SET_DIRTY();
+               });
     grid.nextLine();
   }
 
@@ -143,30 +238,90 @@ void RadioHardwarePage::build(FormWindow * window)
   grid.setLabelWidth(130);
 #endif
 
+  // Bat calibration
+  new StaticText(window, grid.getLabelSlot(), STR_BATT_CALIB);
+  auto batCal = new NumberEdit(window, grid.getFieldSlot(), -127, 127, GET_SET_DEFAULT(g_eeGeneral.txVoltageCalibration));
+  batCal->setDisplayHandler([](BitmapBuffer * dc, LcdFlags flags, int32_t value) {
+      dc->drawNumber(FIELD_PADDING_LEFT, FIELD_PADDING_TOP, getBatteryVoltage(), flags | PREC2, 0, nullptr, "V");
+  });
+  batCal->setWindowFlags(REFRESH_ALWAYS);
+  grid.nextLine();
+
+  // RTC Batt display
+  new StaticText(window, grid.getLabelSlot(), STR_RTC_BATT);
+  new DynamicNumber<uint16_t>(window, grid.getFieldSlot(), [] {
+      return getRTCBatteryVoltage();
+  }, PREC2, nullptr, "V");
+  grid.nextLine();
+
+  // RTC Batt check enable
+  new StaticText(window, grid.getLabelSlot(), STR_RTC_CHECK);
+  new CheckBox(window, grid.getFieldSlot(), GET_SET_INVERTED(g_eeGeneral.disableRtcWarning ));
+  grid.nextLine();
+
+#if defined(CROSSFIRE) && SPORT_MAX_BAUDRATE < 400000
+  // Max baud for external modules
+  new StaticText(window, grid.getLabelSlot(), STR_MAXBAUDRATE);
+  new Choice(window, grid.getFieldSlot(1,0), STR_CRSF_BAUDRATE, 0, 1, GET_SET_DEFAULT(g_eeGeneral.telemetryBaudrate));
+  grid.nextLine();
+#endif
+
+#if defined(BLUETOOTH)
+  // Bluetooth mode
+  {
+    new Subtitle(window, grid.getLineSlot(), STR_BLUETOOTH);
+    grid.nextLine();
+    grid.addWindow(new BluetoothConfigWindow(window, {0, grid.getWindowHeight(), LCD_W, 0}));
+  }
+#endif
+
+#if defined(AUX_SERIAL)
+  new StaticText(window, grid.getLabelSlot(), STR_AUX_SERIAL_MODE);
+  auto aux = new Choice(window, grid.getFieldSlot(1,0), STR_AUX_SERIAL_MODES, 0, UART_MODE_MAX, GET_SET_DEFAULT(g_eeGeneral.auxSerialMode));
+  aux->setAvailableHandler([=](int value) {
+      return isAuxModeAvailable;
+  });
+  grid.nextLine();
+#endif
+
+#if defined(AUX2_SERIAL)
+  new StaticText(window, grid.getLabelSlot(), STR_AUX2_SERIAL_MODE);
+  auto aux2 = new Choice(window, grid.getFieldSlot(1,0), STR_AUX_SERIAL_MODES, 0, UART_MODE_MAX, GET_SET_DEFAULT(g_eeGeneral.aux2SerialMode));
+  aux2->setAvailableHandler([=](int value) {
+      return isAux2ModeAvailable;
+  });
+  grid.nextLine();
+#endif
+
+#if defined(AUX_SERIAL) || defined(AUX2_SERIAL)
+  new StaticText(window, grid.getFieldSlot(1,0), STR_TTL_WARNING, 0, ALARM_COLOR);
+  grid.nextLine();
+#endif
+
   // ADC filter
   new StaticText(window, grid.getLabelSlot(), STR_JITTER_FILTER);
   new CheckBox(window, grid.getFieldSlot(), GET_SET_INVERTED(g_eeGeneral.jitterFilter));
   grid.nextLine();
 
-  // Bat calibration
-  new StaticText(window, grid.getLabelSlot(), STR_BATT_CALIB);
-  auto batCal = new NumberEdit(window, grid.getFieldSlot(), -127, 127, GET_SET_DEFAULT(g_eeGeneral.txVoltageCalibration));
-  batCal->setDisplayHandler([](BitmapBuffer * dc, LcdFlags flags, int32_t value) {
-    dc->drawNumber(2, 0, getBatteryVoltage(), flags | PREC2, 0, nullptr, "V");
+  // Debugs
+  new StaticText(window, grid.getLabelSlot(), STR_DEBUG, 0, FONT(BOLD));
+  auto debugAnas = new TextButton(window, grid.getFieldSlot(2, 0), STR_ANALOGS_BTN);
+  debugAnas->setPressHandler([=]() -> uint8_t {
+      auto debugAnalogsPage = new RadioAnalogsDiagsPage();
+      debugAnalogsPage->setCloseHandler([=]() {
+          calib->setFocus(SET_FOCUS_DEFAULT);
+      });
+      return 0;
   });
-  batCal->setWindowFlags(REFRESH_ALWAYS);
-  grid.nextLine();
 
-  // Factory reset
-  new TextButton(window, grid.getFieldSlot(), STR_FACTORYRESET,
-                 [=]() -> int8_t {
-                     new FullScreenDialog(WARNING_TYPE_CONFIRM, STR_CONFIRMRESET, STR_POPUPS_ENTER_EXIT, "", [=]() {
-                         storageEraseAll(false);
-                         NVIC_SystemReset();
-                         return 0;
-                     });
-                     return 0;
-                 });
+  auto debugKeys = new TextButton(window, grid.getFieldSlot(2, 1), STR_KEYS_BTN);
+  debugKeys->setPressHandler([=]() -> uint8_t {
+    auto debugKeysPage = new RadioKeyDiagsPage();
+    debugKeysPage->setCloseHandler([=]() {
+        calib->setFocus(SET_FOCUS_DEFAULT);
+    });
+    return 0;
+  });
   grid.nextLine();
 
   window->setInnerHeight(grid.getWindowHeight());

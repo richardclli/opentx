@@ -148,11 +148,11 @@ OpenTxSim::~OpenTxSim()
 {
   TRACE("OpenTxSim::~OpenTxSim()");
 
-  StopSimu();
-  StopAudioThread();
+  simuStop();
+  stopAudioThread();
 
 #if defined(EEPROM)
-  StopEepromThread();
+  stopEepromThread();
 #endif
 
   delete bmp;
@@ -252,17 +252,17 @@ long OpenTxSim::onKeypress(FXObject *, FXSelector, void * v)
   return 0;
 }
 
-long OpenTxSim::onMouseDown(FXObject*,FXSelector,void*v)
+long OpenTxSim::onMouseDown(FXObject *, FXSelector, void * v)
 {
   FXEvent * evt = (FXEvent *)v;
   UNUSED(evt);
 
-  // TRACE("onMouseDown %d %d", evt->win_x, evt->win_y);
+  TRACE_WINDOWS("[Mouse Press] %d %d", evt->win_x, evt->win_y);
 
 #if defined(HARDWARE_TOUCH)
   touchState.event = TE_DOWN;
-  touchState.startX = touchState.lastX = touchState.x = evt->win_x;
-  touchState.startY = touchState.lastY = touchState.y = evt->win_y;
+  touchState.startX = touchState.x = evt->win_x;
+  touchState.startY = touchState.y = evt->win_y;
 #endif
 
   return 0;
@@ -273,16 +273,16 @@ long OpenTxSim::onMouseUp(FXObject*,FXSelector,void*v)
   FXEvent * evt = (FXEvent *)v;
   UNUSED(evt);
 
-  // TRACE("onMouseUp %d %d", evt->win_x, evt->win_y);
+  TRACE_WINDOWS("[Mouse Release] %d %d", evt->win_x, evt->win_y);
 
 #if defined(HARDWARE_TOUCH)
   if (touchState.event == TE_DOWN) {
     touchState.event = TE_UP;
-    touchState.x = evt->win_x;
-    touchState.y = evt->win_y;
+    touchState.x = touchState.startX;
+    touchState.y = touchState.startY;
   }
   else {
-    touchState.event = TE_NONE;
+    touchState.event = TE_SLIDE_END;
   }
 #endif
 
@@ -294,13 +294,19 @@ long OpenTxSim::onMouseMove(FXObject*,FXSelector,void*v)
   FXEvent * evt = (FXEvent *)v;
   UNUSED(evt);
 
+  if (evt->state & LEFTBUTTONMASK) {
+    TRACE_WINDOWS("[Mouse Move] %d %d", evt->win_x, evt->win_y);
+
 #if defined(HARDWARE_TOUCH)
-  if (evt->state & LEFTBUTTONMASK && (touchState.event == TE_SLIDE || abs(evt->win_x - touchState.x) > 5 || abs(evt->win_y - touchState.y) > 5)) {
-    touchState.event = TE_SLIDE;
-    touchState.x = evt->win_x;
-    touchState.y = evt->win_y;
-  }
+    touchState.deltaX += evt->win_x - touchState.x;
+    touchState.deltaY += evt->win_y - touchState.y;
+    if (touchState.event == TE_SLIDE || abs(touchState.deltaX) >= SLIDE_RANGE || abs(touchState.deltaY) >= SLIDE_RANGE) {
+      touchState.event = TE_SLIDE;
+      touchState.x = evt->win_x;
+      touchState.y = evt->win_y;
+    }
 #endif
+  }
 
   return 0;
 }
@@ -318,7 +324,7 @@ void OpenTxSim::updateKeysAndSwitches(bool start)
     KEY_Down,      KEY_DOWN,
     KEY_Right,     KEY_RIGHT,
     KEY_Left,      KEY_LEFT,
-#elif defined(PCBXLITE) || defined(RADIO_T12)
+#elif defined(PCBXLITE) || defined(RADIO_FAMILY_JUMPER_T12)
   #if defined(KEYS_GPIO_REG_SHIFT)
     KEY_Shift_L,   KEY_SHIFT,
   #endif
@@ -328,6 +334,23 @@ void OpenTxSim::updateKeysAndSwitches(bool start)
     KEY_Left,      KEY_LEFT,
     KEY_Up,        KEY_UP,
     KEY_Down,      KEY_DOWN,
+#elif defined(RADIO_TX12)
+    KEY_Page_Up,   KEY_PAGEUP,
+    KEY_Page_Down, KEY_PAGEDN,
+    KEY_Return,    KEY_ENTER,
+    KEY_Up,        KEY_MODEL,
+    KEY_Down,      KEY_EXIT,
+    KEY_Right,     KEY_TELE,
+    KEY_Left,      KEY_SYS,
+#elif defined(RADIO_T8)
+    KEY_Page_Up,   KEY_PAGEUP,
+    KEY_Page_Down, KEY_PAGEDN,
+    KEY_Return,    KEY_ENTER,
+    KEY_Right,     KEY_MODEL,
+    KEY_BackSpace, KEY_EXIT,
+    KEY_Left,      KEY_SYS,
+    KEY_Up,        KEY_PLUS,
+    KEY_Down,      KEY_MINUS,
 #elif defined(PCBTARANIS)
     KEY_Page_Up,   KEY_MENU,
   #if defined(KEYS_GPIO_REG_PAGE)
@@ -360,7 +383,7 @@ void OpenTxSim::updateKeysAndSwitches(bool start)
   static FXuint trimKeys[] = { KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12 };
 #endif
 
-  for (unsigned i=0; i<2*NUM_TRIMS; i++) {
+  for (unsigned i=0; i<NUM_TRIMS_KEYS; i++) {
     simuSetTrim(i, getApp()->getKeyState(trimKeys[i]));
   }
 
@@ -575,10 +598,10 @@ int main(int argc, char ** argv)
   simuInit();
 
 #if defined(EEPROM)
-  StartEepromThread(argc >= 2 ? argv[1] : "eeprom.bin");
+  startEepromThread(argc >= 2 ? argv[1] : "eeprom.bin");
 #endif
-  StartAudioThread();
-  StartSimu(false, argc >= 3 ? argv[2] : 0, argc >= 4 ? argv[3] : 0);
+  startAudioThread();
+  simuStart(false, argc >= 3 ? argv[2] : 0, argc >= 4 ? argv[3] : 0);
 
   return application.run();
 }

@@ -73,7 +73,7 @@ enum
 #if !defined(GUI)
   #define DISPLAY_WARNING(...)
   inline void POPUP_WAIT(const char * s) { }
-  inline void POPUP_WARNING(const char * s) { }
+  inline void POPUP_WARNING(const char *, const char * = nullptr) { }
   inline void POPUP_CONFIRMATION(const char * s, PopupMenuHandler handler) { }
   inline void POPUP_INPUT(const char * s, PopupFunc func) { }
   inline void SET_WARNING_INFO(const char * info, uint8_t length, uint8_t flags) { }
@@ -83,6 +83,7 @@ enum
   {
     warningText = nullptr;
     warningInfoText = nullptr;
+    popupMenuTitle = nullptr;
     popupMenuHandler = nullptr;
     popupMenuItemsCount = 0;
   }
@@ -103,12 +104,21 @@ enum
     popupFunc = runPopupWarning;
   }
 
-  inline void POPUP_WARNING(const char * s)
+  inline void POPUP_WARNING(const char * message, const char * info = nullptr)
   {
-    warningText = s;
-    warningInfoText = nullptr;
+    warningText = message;
+    warningInfoText = info;
+    warningInfoLength = info ? strlen(info) : 0;
+    warningInfoFlags = 0;
     warningType = WARNING_TYPE_ASTERISK;
     popupFunc = runPopupWarning;
+  }
+
+  inline void SET_WARNING_INFO(const char * info, uint8_t length, uint8_t flags)
+  {
+    warningInfoText = info;
+    warningInfoLength = length;
+    warningInfoFlags = flags;
   }
 
   inline void POPUP_CONFIRMATION(const char * s, PopupMenuHandler handler)
@@ -129,13 +139,6 @@ enum
     warningInfoText = nullptr;
     warningType = WARNING_TYPE_INPUT;
     popupFunc = func;
-  }
-
-  inline void SET_WARNING_INFO(const char * info, uint8_t length, uint8_t flags)
-  {
-    warningInfoText = info;
-    warningInfoLength = length;
-    warningInfoFlags = flags;
   }
 
   inline bool isEventCaughtByPopup()
@@ -167,6 +170,11 @@ inline void POPUP_MENU_ADD_ITEM(const char * s)
 inline void POPUP_MENU_SELECT_ITEM(uint8_t index)
 {
   popupMenuSelectedItem =  (index > 0 ? (index < popupMenuItemsCount ? index : popupMenuItemsCount) : 0);
+}
+
+inline void POPUP_MENU_TITLE(const char * s)
+{
+  popupMenuTitle = s;
 }
 
 inline void POPUP_MENU_START(PopupMenuHandler handler)

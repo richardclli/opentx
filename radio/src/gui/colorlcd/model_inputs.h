@@ -45,12 +45,14 @@ class CommonInputOrMixButton : public Button {
       Button(parent, rect),
       index(index)
     {
-      setFocusHandler([=]() {
+      setFocusHandler([=](bool active) {
+        if (active) {
           bringToTop();
+        }
       });
     }
 
-    virtual bool isActive() = 0;
+    virtual bool isActive() const = 0;
 
     void checkEvents() override;
 

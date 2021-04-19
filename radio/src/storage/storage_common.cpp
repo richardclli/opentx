@@ -25,7 +25,7 @@ uint8_t   storageDirtyMsk;
 tmr10ms_t storageDirtyTime10ms;
 
 #if defined(RTC_BACKUP_RAM)
-uint8_t   rambackupDirtyMsk;
+uint8_t   rambackupDirtyMsk = EE_GENERAL | EE_MODEL;
 tmr10ms_t rambackupDirtyTime10ms;
 #endif
 
@@ -51,8 +51,16 @@ void preModelLoad()
   if (pulsesStarted()) {
     pausePulses();
   }
-
   pauseMixerCalculations();
+
+#if defined(HARDWARE_INTERNAL_MODULE)
+  stopPulsesInternalModule();
+#endif
+#if defined(HARDWARE_EXTERNAL_MODULE)
+  stopPulsesExternalModule();
+#endif
+
+  stopTrainer();
 }
 
 void postRadioSettingsLoad()
@@ -183,7 +191,7 @@ void postModelLoad(bool alarms)
   referenceModelAudioFiles();
 #endif
 
-#if defined(PCBHORUS)
+#if defined(COLORLCD)
   loadCustomScreens();
 #endif
 

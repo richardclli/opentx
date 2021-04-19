@@ -20,7 +20,6 @@
 
 #include "opentx.h"
 
-uint8_t s_curveChan;
 int8_t * curveEnd[MAX_CURVES];
 
 void loadCurves()
@@ -53,9 +52,7 @@ void loadCurves()
 
   }
   if (showWarning) {
-    POPUP_WARNING("Invalid curve data repaired");
-    const char * w = "check your curves, logic switches";
-    SET_WARNING_INFO(w, strlen(w), 0);
+    POPUP_WARNING("Invalid curve data repaired", "check your curves, logic switches");
   }
 }
 
@@ -122,7 +119,7 @@ bool isCurveUsed(uint8_t index)
 }
 
 #define CUSTOM_POINT_X(points, count, idx) ((idx)==0 ? -100 : (((idx)==(count)-1) ? 100 : points[(count)+(idx)-1]))
-int32_t compute_tangent(CurveHeader * crv, int8_t * points, int i)
+int32_t compute_tangent(CurveHeader * crv, const int8_t * points, int i)
 {
   int32_t m=0;
     uint8_t num_points = crv->points + 5;
@@ -242,7 +239,7 @@ int intpol(int x, uint8_t idx) // -100, -75, -50, -25, 0 ,25 ,50, 75, 100
   int8_t * points = curveAddress(idx);
   uint8_t count = crv.points+5;
   bool custom = (crv.type == CURVE_TYPE_CUSTOM);
-  int16_t erg = 0;
+  int16_t erg;
 
   x += RESXu;
 
@@ -341,11 +338,6 @@ int applyCustomCurve(int x, uint8_t idx)
     return intpol(x, idx);
 }
 
-point_t getPoint(uint8_t index)
-{
-  return getPoint(s_curveChan, index);
-}
-
 point_t getPoint(uint8_t curveIndex, uint8_t index)
 {
   point_t result = {0, 0};
@@ -365,7 +357,17 @@ point_t getPoint(uint8_t curveIndex, uint8_t index)
   return result;
 }
 
+#if !defined(COLORLCD)
+point_t getPoint(uint8_t index)
+{
+  point_t result = getPoint(s_currIdxSubMenu, index);
+  result.x = CURVE_CENTER_X + divRoundClosest(result.x * CURVE_SIDE_WIDTH, RESX);
+  result.y = CURVE_CENTER_Y + divRoundClosest(result.y * CURVE_SIDE_WIDTH, RESX);
+  return result;
+}
+
 int applyCurrentCurve(int x)
 {
-  return applyCustomCurve(x, s_curveChan);
+  return applyCustomCurve(x, s_currIdxSubMenu);
 }
+#endif

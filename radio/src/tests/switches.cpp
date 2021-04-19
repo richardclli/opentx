@@ -77,7 +77,7 @@ TEST(getSwitch, nullSW)
 TEST(getSwitch, inputWithTrim)
 {
   MODEL_RESET();
-  modelDefault(0);
+  setModelDefaults(0);
   MIXER_RESET();
 
   // g_model.logicalSw[0] = { LS_FUNC_VPOS, MIXSRC_FIRST_INPUT, 0, 0 };
@@ -99,17 +99,17 @@ TEST(evalLogicalSwitches, playFile)
 {
   SYSTEM_RESET();
   MODEL_RESET();
-  modelDefault(0);
+  setModelDefaults(0);
   MIXER_RESET();
 
   extern BitField<(MAX_LOGICAL_SWITCHES * 2/*on, off*/)> sdAvailableLogicalSwitchAudioFiles;
   char filename[AUDIO_FILENAME_MAXLEN+1];
 
-#if defined(EEPROM)
-#define MODELNAME "MODEL01"
-#else
+//#if defined(EEPROM)
+#define MODELNAME TR_MODEL "01"
+/*#else
 #define MODELNAME "Model00"
-#endif
+#endif*/
 
   sdAvailableLogicalSwitchAudioFiles.setBit(INDEX_LOGICAL_SWITCH_AUDIO_FILE(0,AUDIO_EVENT_OFF));
   sdAvailableLogicalSwitchAudioFiles.setBit(INDEX_LOGICAL_SWITCH_AUDIO_FILE(0,AUDIO_EVENT_ON));

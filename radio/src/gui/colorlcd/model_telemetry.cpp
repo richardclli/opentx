@@ -77,7 +77,7 @@ class SensorButton : public Button {
         dc->drawSolidFilledRect(2, 2, rect.w - 4, rect.h - 4, HIGHLIGHT_COLOR);
       }
 
-      dc->drawNumber(2, 1, number, LEFT, 0, NULL, ":");
+      dc->drawNumber(2, 1, number, LEFT, 0, nullptr, ":");
 
       dc->drawSizedText(SENSOR_COL1, line1, g_model.telemetrySensors[index].label, TELEM_LABEL_LEN);
 
@@ -257,7 +257,7 @@ class SensorEditWindow : public Page {
         else {
           new StaticText(sensorParametersWindow, grid.getLabelSlot(), STR_OFFSET);
           new NumberEdit(sensorParametersWindow, grid.getFieldSlot(), -30000, 30000, GET_SET_DEFAULT(sensor->custom.offset),
-                         (sensor->prec > 0) ? (sensor->prec == 2 ? PREC2 : PREC1) : 0);
+                         0, (sensor->prec > 0) ? (sensor->prec == 2 ? PREC2 : PREC1) : 0);
         }
         grid.nextLine();
       }
@@ -393,11 +393,7 @@ void ModelTelemetryPage::build(FormWindow * window, int8_t focusSensorIndex)
   this->window = window;
 
   // RSSI
-  if (g_model.moduleData[EXTERNAL_MODULE].type == MODULE_TYPE_MULTIMODULE &&
-      g_model.moduleData[EXTERNAL_MODULE].getMultiProtocol() == MODULE_SUBTYPE_MULTI_FS_AFHDS2A)
-    new Subtitle(window, grid.getLineSlot(), "RSNR");
-  else
-    new Subtitle(window, grid.getLineSlot(), "RSSI");
+  new Subtitle(window, grid.getLineSlot(), getRssiLabel());
   grid.nextLine();
 
   new StaticText(window, grid.getLabelSlot(true), STR_LOWALARM);
@@ -440,7 +436,7 @@ void ModelTelemetryPage::build(FormWindow * window, int8_t focusSensorIndex)
       Button * button = new SensorButton(window, grid.getFieldSlot(), idx, ++count);
       button->setPressHandler([=]() -> uint8_t {
         button->bringToTop();
-        Menu * menu = new Menu();
+        Menu * menu = new Menu(window);
         menu->addLine(STR_EDIT, [=]() {
           editSensor(window, idx);
         });
@@ -467,7 +463,7 @@ void ModelTelemetryPage::build(FormWindow * window, int8_t focusSensorIndex)
         return 0;
       });
       if (focusSensorIndex == idx) {
-        button->setFocus();
+        button->setFocus(SET_FOCUS_DEFAULT);
       }
       grid.nextLine();
     }
@@ -541,8 +537,8 @@ void ModelTelemetryPage::build(FormWindow * window, int8_t focusSensorIndex)
   new NumberEdit(window, grid.getFieldSlot(2, 1), -7, 7, GET_SET_WITH_OFFSET(g_model.varioData.max, 10));
   grid.nextLine();
   new StaticText(window, grid.getLabelSlot(true), STR_CENTER);
-  new NumberEdit(window, grid.getFieldSlot(3, 0), -7, 7, GET_SET_WITH_OFFSET(g_model.varioData.min, -5), PREC1);
-  new NumberEdit(window, grid.getFieldSlot(3, 1), -7, 7, GET_SET_WITH_OFFSET(g_model.varioData.max, 5), PREC1);
+  new NumberEdit(window, grid.getFieldSlot(3, 0), -7, 7, GET_SET_WITH_OFFSET(g_model.varioData.min, -5), 0, PREC1);
+  new NumberEdit(window, grid.getFieldSlot(3, 1), -7, 7, GET_SET_WITH_OFFSET(g_model.varioData.max, 5), 0, PREC1);
   new Choice(window, grid.getFieldSlot(3, 2), STR_VVARIOCENTER, 0, 1, GET_SET_DEFAULT(g_model.varioData.centerSilent));
   grid.nextLine();
 

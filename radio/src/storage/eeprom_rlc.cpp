@@ -465,13 +465,11 @@ const char * eeBackupModel(uint8_t i_fileSrc)
 
   uint8_t i = sizeof(MODELS_PATH)+sizeof(g_model.header.name)-1;
   uint8_t len = 0;
-  while (i>sizeof(MODELS_PATH)-1) {
+  while (i > sizeof(MODELS_PATH)-1) {
     if (!len && buf[i])
       len = i+1;
     if (len) {
-      if (buf[i])
-        buf[i] = zchar2char(buf[i]);
-      else
+      if (!buf[i])
         buf[i] = '_';
     }
     i--;
@@ -770,6 +768,15 @@ bool eeLoadGeneral(bool allowFixes)
 #if defined(PCBX7)
   if (g_eeGeneral.variant == 0) {
     TRACE("Pre release EEPROM detected, variant %d instead of %d for X7 radio. Loading anyway", g_eeGeneral.variant, EEPROM_VARIANT);
+    g_eeGeneral.variant = EEPROM_VARIANT;
+    storageDirty(EE_GENERAL);
+    return true;
+  }
+#endif
+
+#if defined(PCBX9LITES)
+  if (g_eeGeneral.variant == 0x0800) {
+    TRACE("Pre release EEPROM detected, variant %d instead of %d for X9LiteS radio. Loading anyway", g_eeGeneral.variant, EEPROM_VARIANT);
     g_eeGeneral.variant = EEPROM_VARIANT;
     storageDirty(EE_GENERAL);
     return true;

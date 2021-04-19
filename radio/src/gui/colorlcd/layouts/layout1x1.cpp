@@ -19,15 +19,17 @@
  */
 
 #include "opentx.h"
+#include "trims.h"
+
+constexpr coord_t border = 10;
 
 const uint8_t LBM_LAYOUT_1x1[] = {
 #include "mask_layout1x1.lbm"
 };
 
 const ZoneOption OPTIONS_LAYOUT_1x1[] = {
-  { "Top bar", ZoneOption::Bool },
-  { "Sliders+Trims", ZoneOption::Bool },
-  { NULL, ZoneOption::Bool }
+  LAYOUT_COMMON_OPTIONS,
+  LAYOUT_OPTIONS_END
 };
 
 class Layout1x1: public Layout
@@ -38,55 +40,17 @@ class Layout1x1: public Layout
     {
     }
 
-    void create() override
-    {
-      Layout::create();
-      persistentData->options[0] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
-      persistentData->options[1] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
-    }
-
     unsigned int getZonesCount() const override
     {
       return 1;
     }
 
-    Zone getZone(unsigned int index) const override
+    rect_t getZone(unsigned int index) const override
     {
-      Zone zone = { 10, 10, LCD_W - 2*10, LCD_H - 2*10 };
-      if (persistentData->options[0].value.boolValue) {
-        zone.y += MENU_HEADER_HEIGHT;
-        zone.h -= MENU_HEADER_HEIGHT;
-      }
-      if (persistentData->options[1].value.boolValue) {
-        zone.x += 35;
-        zone.w -= 2*35;
-        zone.h -= 35;
-      }
+      rect_t zone = getMainZone({border, border, LCD_W - 2 * border, LCD_H - 2 * border});
+
       return zone;
     }
-
-//    virtual void refresh();
 };
-
-//void Layout1x1::refresh()
-//{
-//  theme->drawBackground();
-//
-//  if (persistentData->options[0].value.boolValue) {
-//    drawTopBar();
-//  }
-//
-//  if (persistentData->options[1].value.boolValue) {
-//    // Sliders + Trims + Flight mode
-//    lcdDrawSizedText(LCD_W / 2 - getTextWidth(g_model.flightModeData[mixerCurrentFlightMode].name,  sizeof(g_model.flightModeData[mixerCurrentFlightMode].name), ZCHAR | FONT(XS)) / 2,
-//                     232,
-//                     g_model.flightModeData[mixerCurrentFlightMode].name,
-//                     sizeof(g_model.flightModeData[mixerCurrentFlightMode].name), ZCHAR | FONT(XS));
-//    drawMainPots();
-//    drawTrims(mixerCurrentFlightMode);
-//  }
-//
-//  Layout::refresh();
-//}
 
 BaseLayoutFactory<Layout1x1> layout1x1("Layout1x1", "Fullscreen", LBM_LAYOUT_1x1, OPTIONS_LAYOUT_1x1);

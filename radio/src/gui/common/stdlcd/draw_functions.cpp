@@ -24,32 +24,31 @@
 #if defined(MULTIMODULE)
 void lcdDrawMultiProtocolString(coord_t x, coord_t y, uint8_t moduleIdx, uint8_t protocol, LcdFlags flags)
 {
-  if (protocol <= MODULE_SUBTYPE_MULTI_LAST) {
+  MultiModuleStatus & status = getMultiModuleStatus(moduleIdx);
+  if (status.protocolName[0] && status.isValid()) {
+    lcdDrawText(x, y, status.protocolName, flags);
+  }
+  else if (protocol <= MODULE_SUBTYPE_MULTI_LAST) {
     lcdDrawTextAtIndex(x, y, STR_MULTI_PROTOCOLS, protocol, flags);
-    return;
   }
   else {
-    MultiModuleStatus &status = getMultiModuleStatus(moduleIdx);
-    if (status.protocolName[0] && status.isValid())
-      lcdDrawText(x, y, status.protocolName, flags);
-    else
-      lcdDrawNumber(x, y, protocol + 3, flags); // Convert because of OpenTX FrSky fidling (OpenTX protocol tables and Multiprotocol tables don't match)
+    lcdDrawNumber(x, y, protocol + 3, flags); // Convert because of OpenTX FrSky fidling (OpenTX protocol tables and Multiprotocol tables don't match)
   }
 }
 
 void lcdDrawMultiSubProtocolString(coord_t x, coord_t y, uint8_t moduleIdx, uint8_t subType, LcdFlags flags)
 {
-  const mm_protocol_definition *pdef = getMultiProtocolDefinition(g_model.moduleData[moduleIdx].getMultiProtocol());
-  if (subType <= pdef->maxSubtype && pdef->subTypeString != nullptr) {
+  MultiModuleStatus & status = getMultiModuleStatus(moduleIdx);
+  const mm_protocol_definition * pdef = getMultiProtocolDefinition(g_model.moduleData[moduleIdx].getMultiProtocol());
+
+  if (status.protocolName[0] && status.isValid()) {
+    lcdDrawText(x, y, status.protocolSubName, flags);
+  }
+  else if (subType <= pdef->maxSubtype && pdef->subTypeString != nullptr) {
     lcdDrawTextAtIndex(x, y, pdef->subTypeString, subType, flags);
-    return;
   }
   else {
-    MultiModuleStatus &status = getMultiModuleStatus(moduleIdx);
-    if (status.protocolName[0] && status.isValid())
-      lcdDrawText(x, y, status.protocolSubName, flags);
-    else
-      lcdDrawNumber(x, y, subType, flags);
+    lcdDrawNumber(x, y, subType, flags);
   }
 }
 #endif
@@ -84,7 +83,7 @@ void drawTrimMode(coord_t x, coord_t y, uint8_t flightMode, uint8_t idx, LcdFlag
   }
 }
 
-void drawValueWithUnit(coord_t x, coord_t y, int val, uint8_t unit, LcdFlags att)
+void drawValueWithUnit(coord_t x, coord_t y, int32_t val, uint8_t unit, LcdFlags att)
 {
   // convertUnit(val, unit);
   lcdDrawNumber(x, y, val, att & (~NO_UNIT));
@@ -121,6 +120,40 @@ FlightModesType editFlightModes(coord_t x, coord_t y, event_t event, FlightModes
   return value;
 }
 
+char getNextChar(char c, uint8_t position)
+{
+  if (c == ' ')
+    return (position == 0 ? 'A' : 'a');
+
+  if (c == 'Z' || c == 'z')
+    return '0';
+
+  static const char * specialChars = "9_-., ";
+  for (uint8_t i = 0; specialChars[i] != 0; i++) {
+    if (c == specialChars[i])
+      return specialChars[i + 1];
+  }
+
+  return c + 1;
+}
+
+char getPreviousChar(char c, uint8_t position)
+{
+  if (c == 'A' || c == 'a')
+    return ' ';
+
+  if (c == '0')
+    return (position == 0 ? 'Z' : 'z');
+
+  static const char * specialChars = "9_-., ";
+  for (uint8_t i = 1; specialChars[i] != 0; i++) {
+    if (c == specialChars[i])
+      return specialChars[i - 1];
+  }
+
+  return c - 1;
+}
+
 void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, uint8_t active, LcdFlags attr)
 {
   uint8_t mode = 0;
@@ -131,7 +164,7 @@ void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, ui
       mode = FIXEDWIDTH;
   }
 
-  lcdDrawSizedText(x, y, name, size, attr | mode);
+  lcdDrawSizedText(x, y, name[0] == '\0' ? "---" : name, size, attr | mode);
   coord_t backupNextPos = lcdNextPos;
 
   if (active) {
@@ -146,7 +179,7 @@ void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, ui
           if (c <= 0) v = -v;
         }
         else {
-          v = checkIncDec(event, abs(v), '0', 'z', 0);
+          v = checkIncDec(event, abs(v), ' ', 'z', 0);
         }
       }
 
@@ -164,11 +197,13 @@ void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, ui
 
 #if defined(NAVIGATION_XLITE) || defined(NAVIGATION_9X)
         case EVT_KEY_BREAK(KEY_LEFT):
-          if (cur>0) cur--;
+          if (cur > 0)
+            cur--;
           break;
 
         case EVT_KEY_BREAK(KEY_RIGHT):
-          if (cur<size-1) cur++;
+          if (cur < size - 1)
+            cur++;
           break;
 #endif
 
@@ -181,33 +216,21 @@ void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, ui
         case EVT_KEY_LONG(KEY_ENTER):
 #endif
 
-          if (attr & ZCHAR) {
-#if defined(PCBTARANIS) && !defined(PCBXLITE)
-            if (v == 0) {
-              s_editMode = 0;
-              killEvents(event);
-            }
-#endif
-            if (v >= -26 && v <= 26) {
-              v = -v; // toggle case
-            }
-          }
-          else {
 #if !defined(NAVIGATION_XLITE)
-            if (v == ' ') {
-              s_editMode = 0;
-              killEvents(event);
-              break;
-            }
-            else
-#endif
-            if (v >= 'A' && v <= 'Z') {
-              v = 'a' + v - 'A'; // toggle case
-            }
-            else if (v >= 'a' && v <= 'z') {
-              v = 'A' + v - 'a'; // toggle case
-            }
+          if (v == ' ') {
+            s_editMode = 0;
+            killEvents(event);
+            break;
           }
+          else
+#endif
+          if (v >= 'A' && v <= 'Z') {
+            v = 'a' + v - 'A'; // toggle case
+          }
+          else if (v >= 'a' && v <= 'z') {
+            v = 'A' + v - 'a'; // toggle case
+          }
+
 #if defined(NAVIGATION_9X)
           if (event==EVT_KEY_LONG(KEY_LEFT))
             killEvents(KEY_LEFT);
@@ -220,12 +243,7 @@ void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, ui
         storageDirty(isModelMenuDisplayed() ? EE_MODEL : EE_GENERAL);
       }
 
-      if (attr == ZCHAR) {
-        lcdDrawChar(x+editNameCursorPos*FW, y, zchar2char(v), ERASEBG|INVERS|FIXEDWIDTH);
-      }
-      else {
-        lcdDrawChar(x+editNameCursorPos*FW, y, v, ERASEBG|INVERS|FIXEDWIDTH);
-      }
+      lcdDrawChar(x+editNameCursorPos*FW, y, v, ERASEBG|INVERS|FIXEDWIDTH);
     }
     else {
       cur = 0;
@@ -370,6 +388,11 @@ void drawSensorCustomValue(coord_t x, coord_t y, uint8_t sensor, int32_t value, 
     return;
   }
 
+  if (IS_FAI_FORBIDDEN(MIXSRC_FIRST_TELEM + 3 * sensor)) {
+    lcdDrawText(x, y, "FAI mode", flags);
+    return;
+  }
+
   TelemetryItem & telemetryItem = telemetryItems[sensor];
   TelemetrySensor & telemetrySensor = g_model.telemetrySensors[sensor];
 
@@ -387,11 +410,11 @@ void drawSensorCustomValue(coord_t x, coord_t y, uint8_t sensor, int32_t value, 
             lcdDrawText(x, y, "OK", flags);
           }
           else {
-            for (uint8_t i=0; i<16; i++) {
-              if (value & (1 << i)) {
+            for (uint8_t i = 0; i < 16; i++) {
+              if (value & (1u << i)) {
                 char s[] = "CH__ KO";
-                strAppendUnsigned(&s[2], i+1, 2);
-                lcdDrawText(x, flags & DBLSIZE ? y+1 : y, s, flags & ~DBLSIZE);
+                strAppendUnsigned(&s[2], i + 1, 2);
+                lcdDrawText(x, flags & DBLSIZE ? y + 1 : y, s, flags & ~DBLSIZE);
                 break;
               }
             }
@@ -399,7 +422,7 @@ void drawSensorCustomValue(coord_t x, coord_t y, uint8_t sensor, int32_t value, 
         }
         else {
           if (value == 0) {
-            lcdDrawText(x, flags & DBLSIZE ? y+1 : y, "Rx OK", flags & ~DBLSIZE);
+            lcdDrawText(x, flags & DBLSIZE ? y + 1 : y, "Rx OK", flags & ~DBLSIZE);
           }
           else {
             static const char * const RXS_STATUS[] = {
@@ -414,11 +437,39 @@ void drawSensorCustomValue(coord_t x, coord_t y, uint8_t sensor, int32_t value, 
               "Rx2 Lost",
               "Rx1 NS",
               "Rx2 NS",
+              "Rx3 FS",
+              "Rx3 LF",
+              "Rx3 Lost",
+              "Rx3 NS"
             };
-            for (uint8_t i=0; i<DIM(RXS_STATUS); i++) {
-              if (value & (1<<i)) {
-                lcdDrawText(x, flags & DBLSIZE ? y+1 : y, RXS_STATUS[i], flags & ~DBLSIZE);
+            for (uint8_t i = 0; i < DIM(RXS_STATUS); i++) {
+              if (value & (1u << i)) {
+                lcdDrawText(x, flags & DBLSIZE ? y + 1 : y, RXS_STATUS[i], flags & ~DBLSIZE);
                 break;
+              }
+            }
+          }
+        }
+      }
+      else if (telemetrySensor.id >= RB3040_OUTPUT_FIRST_ID && telemetrySensor.id <= RB3040_OUTPUT_LAST_ID) {
+        if (telemetrySensor.subId == 0) {
+          if (value == 0) {
+            lcdDrawText(x, y, "OK", flags);     
+          }
+          else {
+            for (uint8_t i = 0; i < 9; i++) {
+              if (value & (1u << i)) {
+                if (i < 8) {
+                  char s[] = "CH__ KO";
+                  strAppendUnsigned(&s[2], i + 17, 2);
+                  lcdDrawText(x, flags & DBLSIZE ? y + 1 : y, s, flags & ~DBLSIZE);
+                  break;
+                }
+                else {
+                  char s[] = "S.P Ovl";
+                  lcdDrawText(x, flags & DBLSIZE ? y + 1 : y, s, flags & ~DBLSIZE);
+                  break;
+                }
               }
             }
           }
@@ -427,11 +478,11 @@ void drawSensorCustomValue(coord_t x, coord_t y, uint8_t sensor, int32_t value, 
     }
   }
   else if (telemetrySensor.unit == UNIT_TEXT) {
-    lcdDrawSizedText(x, flags & DBLSIZE ? y+1 : y, telemetryItem.text, sizeof(telemetryItem.text), flags & ~DBLSIZE);
+    lcdDrawSizedText(x, flags & DBLSIZE ? y + 1 : y, telemetryItem.text, sizeof(telemetryItem.text), flags & ~DBLSIZE);
   }
   else {
     if (telemetrySensor.prec > 0) {
-      flags |= (telemetrySensor.prec==1 ? PREC1 : PREC2);
+      flags |= (telemetrySensor.prec == 1 ? PREC1 : PREC2);
     }
     drawValueWithUnit(x, y, value, telemetrySensor.unit == UNIT_CELLS ? UNIT_VOLTS : telemetrySensor.unit, flags);
   }

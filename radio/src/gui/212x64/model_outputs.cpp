@@ -86,6 +86,9 @@ void onLimitsMenu(const char *result)
     copyTrimsToOffset(ch);
     storageDirty(EE_MODEL);
   }
+  else if (result == STR_COPY_MIN_MAX_TO_OUTPUTS) {
+    copyMinMaxToOutputs(ch);
+  }
 }
 
 void menuModelLimits(event_t event)
@@ -142,6 +145,7 @@ void menuModelLimits(event_t event)
       POPUP_MENU_ADD_ITEM(STR_RESET);
       POPUP_MENU_ADD_ITEM(STR_COPY_TRIMS_TO_OFS);
       POPUP_MENU_ADD_ITEM(STR_COPY_STICKS_TO_OFS);
+      POPUP_MENU_ADD_ITEM(STR_COPY_MIN_MAX_TO_OUTPUTS);
       POPUP_MENU_START(onLimitsMenu);
     }
 
@@ -166,7 +170,7 @@ void menuModelLimits(event_t event)
           lcdDrawNumber(LIMITS_OFFSET_POS, y, ld->offset, attr|PREC1|RIGHT);
 #endif
           if (active) {
-            ld->offset = checkIncDec(event, ld->offset, -1000, 1000, EE_MODEL, NULL, stops1000);
+            ld->offset = checkIncDec(event, ld->offset, -1000, 1000, EE_MODEL, nullptr, stops1000);
           }
           else if (attr && event==EVT_KEY_LONG(KEY_MENU)) {
             copySticksToOffset(k);
@@ -180,7 +184,7 @@ void menuModelLimits(event_t event)
             break;
           }
           lcdDrawNumber(LIMITS_MIN_POS, y, MIN_MAX_DISPLAY(ld->min-LIMITS_MIN_MAX_OFFSET), attr|PREC1|RIGHT);
-          if (active) ld->min = LIMITS_MIN_MAX_OFFSET + checkIncDec(event, ld->min-LIMITS_MIN_MAX_OFFSET, -limit, 0, EE_MODEL, NULL, stops1000);
+          if (active) ld->min = LIMITS_MIN_MAX_OFFSET + checkIncDec(event, ld->min-LIMITS_MIN_MAX_OFFSET, -limit, 0, EE_MODEL, nullptr, stops1000);
           break;
 
         case ITEM_LIMITS_MAX:
@@ -189,7 +193,7 @@ void menuModelLimits(event_t event)
             break;
           }
           lcdDrawNumber(LIMITS_MAX_POS, y, MIN_MAX_DISPLAY(ld->max+LIMITS_MIN_MAX_OFFSET), attr|PREC1|RIGHT);
-          if (active) ld->max = -LIMITS_MIN_MAX_OFFSET + checkIncDec(event, ld->max+LIMITS_MIN_MAX_OFFSET, 0, +limit, EE_MODEL, NULL, stops1000);
+          if (active) ld->max = -LIMITS_MIN_MAX_OFFSET + checkIncDec(event, ld->max+LIMITS_MIN_MAX_OFFSET, 0, +limit, EE_MODEL, nullptr, stops1000);
           break;
 
         case ITEM_LIMITS_DIRECTION:
@@ -208,7 +212,7 @@ void menuModelLimits(event_t event)
         case ITEM_LIMITS_CURVE:
           drawCurveName(LIMITS_CURVE_POS, y, ld->curve, attr);
           if (attr && event==EVT_KEY_LONG(KEY_ENTER) && ld->curve>0) {
-            s_curveChan = (ld->curve<0 ? -ld->curve-1 : ld->curve-1);
+            s_currIdxSubMenu = (ld->curve<0 ? -ld->curve-1 : ld->curve-1);
             pushMenu(menuModelCurveOne);
           }
           if (active) {

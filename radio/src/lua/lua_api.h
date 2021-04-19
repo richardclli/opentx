@@ -41,6 +41,11 @@ extern "C" {
   #endif
 #endif
 
+#if !defined(CLI) || defined(AUX2_SERIAL)
+#define LUA_FIFO_SIZE 256
+extern Fifo<uint8_t, LUA_FIFO_SIZE> * luaRxFifo;
+#endif
+
 extern lua_State * lsScripts;
 extern lua_State * lsWidgets;
 extern bool luaLcdAllowed;
@@ -50,7 +55,12 @@ extern uint32_t luaExtraMemoryUsage;
 
 void luaInit();
 void luaInitThemesAndWidgets();
+//TODO FIXME
+#if 1
+#define LUA_INIT_THEMES_AND_WIDGETS()
+#else
 #define LUA_INIT_THEMES_AND_WIDGETS()  luaInitThemesAndWidgets()
+#endif
 
 #define lua_registernumber(L, n, i)    (lua_pushnumber(L, (i)), lua_setglobal(L, (n)))
 #define lua_registerint(L, n, i)       (lua_pushinteger(L, (i)), lua_setglobal(L, (n)))

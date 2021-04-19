@@ -37,11 +37,11 @@ class SpecialFunctionEditPage : public Page {
   protected:
     CustomFunctionData * functions;
     uint8_t index;
-    FormWindow * specialFunctionOneWindow = nullptr;
+    FormGroup * specialFunctionOneWindow = nullptr;
     StaticText * headerSF = nullptr;
     bool active = false;
 
-    bool isActive()
+    bool isActive() const
     {
       return ((functions == g_model.customFn ? modelFunctionsContext.activeSwitches : globalFunctionsContext.activeSwitches) & ((MASK_CFN_TYPE)1 << index) ? 1 : 0);
     }
@@ -58,11 +58,11 @@ class SpecialFunctionEditPage : public Page {
 
     void buildHeader(Window * window)
     {
-      new StaticText(window, { PAGE_TITLE_LEFT, PAGE_TITLE_TOP, LCD_W - PAGE_TITLE_LEFT, 20 }, functions == g_model.customFn ? STR_MENUCUSTOMFUNC : STR_MENUSPECIALFUNCS, MENU_COLOR);
-      headerSF = new StaticText(window, { PAGE_TITLE_LEFT, PAGE_TITLE_TOP + PAGE_LINE_HEIGHT, LCD_W - PAGE_TITLE_LEFT, 20 }, (functions == g_model.customFn ? "SF" : "GF" ) + std::to_string(index), MENU_COLOR);
+      new StaticText(window, { PAGE_TITLE_LEFT, PAGE_TITLE_TOP, LCD_W - PAGE_TITLE_LEFT, 20 }, functions == g_model.customFn ? STR_MENUCUSTOMFUNC : STR_MENUSPECIALFUNCS, 0, MENU_COLOR);
+      headerSF = new StaticText(window, { PAGE_TITLE_LEFT, PAGE_TITLE_TOP + PAGE_LINE_HEIGHT, LCD_W - PAGE_TITLE_LEFT, 20 }, (functions == g_model.customFn ? "SF" : "GF" ) + std::to_string(index), 0, MENU_COLOR);
     }
 
-    void updateSpecialFunctionOneWindow(FormField * previousField, FormField * nextField)
+    void updateSpecialFunctionOneWindow()
     {
       FormGridLayout grid;
       specialFunctionOneWindow->clear();
@@ -82,16 +82,25 @@ class SpecialFunctionEditPage : public Page {
           grid.nextLine();
           break;
 
-        case FUNC_TRAINER:
-          new StaticText(specialFunctionOneWindow, grid.getLabelSlot(), STR_TIMER);
-          new SourceChoice(specialFunctionOneWindow, grid.getFieldSlot(), 0, 4, GET_SET_DEFAULT(CFN_TIMER_INDEX(cfn)));
+        case FUNC_TRAINER: {
+          new StaticText(specialFunctionOneWindow, grid.getLabelSlot(), STR_VALUE);
+          auto choice = new Choice(specialFunctionOneWindow, grid.getFieldSlot(), 0,NUM_STICKS + 1,GET_SET_DEFAULT(CFN_PARAM(cfn)));
+          choice->setTextHandler([=](int32_t value) {
+              if (value == 0)
+                return std::string(STR_STICKS);
+              else if (value == NUM_STICKS + 1)
+                return std::string(STR_CHANS);
+              else
+                return TEXT_AT_INDEX(STR_VSRCRAW, value);;
+          });
           grid.nextLine();
           break;
+        }
 
         case FUNC_RESET:
           if (CFN_PARAM(cfn) < FUNC_RESET_PARAM_FIRST_TELEM) {
             new StaticText(specialFunctionOneWindow, grid.getLabelSlot(), STR_RESET);
-            auto choice = new Choice(specialFunctionOneWindow, grid.getFieldSlot(), nullptr, 0,
+            auto choice = new Choice(specialFunctionOneWindow, grid.getFieldSlot(), 0,
                                      FUNC_RESET_PARAM_FIRST_TELEM + lastUsedTelemetryIndex(),
                                      GET_SET_DEFAULT(CFN_PARAM(cfn)));
             choice->setAvailableHandler(isSourceAvailableInResetSpecialFunction);
@@ -107,6 +116,12 @@ class SpecialFunctionEditPage : public Page {
 
         case FUNC_VOLUME:
           new StaticText(specialFunctionOneWindow, grid.getLabelSlot(), STR_VOLUME);
+          new SourceChoice(specialFunctionOneWindow, grid.getFieldSlot(), 0, MIXSRC_LAST_CH, GET_SET_DEFAULT(CFN_PARAM(cfn)));
+          grid.nextLine();
+          break;
+
+        case FUNC_BACKLIGHT:
+          new StaticText(specialFunctionOneWindow, grid.getLabelSlot(), STR_VALUE);
           new SourceChoice(specialFunctionOneWindow, grid.getFieldSlot(), 0, MIXSRC_LAST_CH, GET_SET_DEFAULT(CFN_PARAM(cfn)));
           grid.nextLine();
           break;
@@ -139,7 +154,7 @@ class SpecialFunctionEditPage : public Page {
 
         case FUNC_SET_TIMER: {
           new StaticText(specialFunctionOneWindow, grid.getLabelSlot(), STR_TIMER);
-          auto timerchoice = new Choice(specialFunctionOneWindow, grid.getFieldSlot(), nullptr, 0, TIMERS - 1, GET_SET_DEFAULT(CFN_TIMER_INDEX(cfn)));
+          auto timerchoice = new Choice(specialFunctionOneWindow, grid.getFieldSlot(), 0, TIMERS - 1, GET_SET_DEFAULT(CFN_TIMER_INDEX(cfn)));
           timerchoice->setTextHandler([](int32_t value) {
             return std::string(STR_TIMER) + std::to_string(value + 1);
           });
@@ -195,7 +210,10 @@ class SpecialFunctionEditPage : public Page {
           else
             dc->drawNumber(3, 0, value * CFN_PLAY_REPEAT_MUL, flags, 0, nullptr, "s");
         });
+        grid.nextLine();
       }
+
+      specialFunctionOneWindow->adjustHeight();
     }
 
     void buildBody(FormWindow * window)
@@ -223,15 +241,15 @@ class SpecialFunctionEditPage : public Page {
           CFN_FUNC(cfn) = newValue;
           CFN_RESET(cfn);
           SET_DIRTY();
-          updateSpecialFunctionOneWindow(functionChoice, switchChoice);
+          updateSpecialFunctionOneWindow();
       });
       functionChoice->setAvailableHandler([=](int value) {
         return isAssignableFunctionAvailable(value, functions);
       });
       grid.nextLine();
 
-      specialFunctionOneWindow = new FormWindow(window, {0, grid.getWindowHeight(), LCD_W, 0});
-      updateSpecialFunctionOneWindow(functionChoice, switchChoice);
+      specialFunctionOneWindow = new FormGroup(window, {0, grid.getWindowHeight(), LCD_W, 0}, FORM_FORWARD_FOCUS);
+      updateSpecialFunctionOneWindow();
       grid.addWindow(specialFunctionOneWindow);
     }
 };
@@ -258,13 +276,13 @@ class SpecialFunctionButton : public Button {
     }
 
 #if defined(DEBUG_WINDOWS)
-    std::string getName() override
+    std::string getName() const override
     {
       return "SpecialFunctionButton";
     }
 #endif
 
-    bool isActive()
+    bool isActive() const
     {
       return ((functions == g_model.customFn ? modelFunctionsContext.activeSwitches : globalFunctionsContext.activeSwitches) & ((MASK_CFN_TYPE)1 << index) ? 1 : 0);
     }
@@ -316,6 +334,10 @@ class SpecialFunctionButton : public Button {
           break;
 
         case FUNC_VOLUME:
+          drawSource(dc, col1, line2, CFN_PARAM(cfn), 0);
+          break;
+
+        case FUNC_BACKLIGHT:
           drawSource(dc, col1, line2, CFN_PARAM(cfn), 0);
           break;
 
@@ -438,7 +460,7 @@ void SpecialFunctionsPage::build(FormWindow * window, int8_t focusIndex)
       auto button = new SpecialFunctionButton(window, grid.getFieldSlot(), functions, i);
       button->setPressHandler([=]() {
           button->bringToTop();
-          Menu * menu = new Menu();
+          Menu * menu = new Menu(window);
           menu->addLine(STR_EDIT, [=]() {
               editSpecialFunction(window, i);
           });
@@ -480,7 +502,7 @@ void SpecialFunctionsPage::build(FormWindow * window, int8_t focusIndex)
       });
 
       if (focusIndex == i) {
-        button->setFocus();
+        button->setFocus(SET_FOCUS_DEFAULT);
       }
 
       grid.spacer(button->height() + 5);

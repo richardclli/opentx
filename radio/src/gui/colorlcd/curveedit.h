@@ -18,19 +18,47 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _CURVEEDIT_H_
-#define _CURVEEDIT_H_
+#pragma once
 
 #include "form.h"
 #include "curve.h"
 
-class CurveEdit: public FormField {
+class CurveEdit;
+
+class CurveDataEdit : public FormGroup
+{
+  friend class CurveEdit;
+
+  public:
+    CurveDataEdit(Window * parent, const rect_t & rect, uint8_t index, CurveEdit * curveEdit);
+
+    void paint(BitmapBuffer * dc) override;
+
+    void update();
+
+  protected:
+    uint8_t index;
+    CurveEdit * curveEdit;
+};
+
+class CurveEdit: public FormField
+{
+  friend class CurveDataEdit;
+
   public:
     CurveEdit(Window * parent, const rect_t & rect, uint8_t index);
 
-    ~CurveEdit() override;
+    void deleteLater(bool detach = true, bool trash = true) override
+    {
+      if (_deleted)
+        return;
 
-    void update();
+      preview.deleteLater(true, false);
+
+      FormField::deleteLater(detach, trash);
+    }
+
+    void updatePreview();
 
     void onEvent(event_t event) override;
 
@@ -50,7 +78,5 @@ class CurveEdit: public FormField {
     void down();
     void right();
     void left();
-    bool isCustomCurve();
+    bool isCustomCurve() const;
 };
-
-#endif // _CURVEEDIT_H_

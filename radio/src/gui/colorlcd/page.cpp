@@ -35,45 +35,33 @@ PageHeader::PageHeader(Page * parent, uint8_t icon):
 {
 }
 
-PageHeader::~PageHeader()
-{
-#if defined(HARDWARE_TOUCH)
-  back.detach();
-#endif
-}
-
 void PageHeader::paint(BitmapBuffer * dc)
 {
-  static_cast<ThemeBase *>(theme)->drawMenuBackground(dc, getIcon(), "");
+  OpenTxTheme::instance()->drawMenuBackground(dc, getIcon(), "");
   dc->drawSolidFilledRect(MENU_HEADER_HEIGHT, 0, LCD_W - MENU_HEADER_HEIGHT, MENU_HEADER_HEIGHT, MENU_BGCOLOR);
 }
 
 Page::Page(unsigned icon):
-  Window(&mainWindow, {0, 0, LCD_W, LCD_H}, OPAQUE),
+  Window(MainWindow::instance(), {0, 0, LCD_W, LCD_H}, OPAQUE),
   header(this, icon),
-  body(this, { 0, MENU_HEADER_HEIGHT, LCD_W, LCD_H - MENU_HEADER_HEIGHT }),
-  previousFocus(focusWindow)
+  body(this, { 0, MENU_HEADER_HEIGHT, LCD_W, LCD_H - MENU_HEADER_HEIGHT }, FORM_FORWARD_FOCUS)
 {
+  Layer::push(this);
   clearFocus();
 }
 
-Page::~Page()
+void Page::deleteLater(bool detach, bool trash)
 {
-  header.detach();
-  body.detach();
+  Layer::pop(this);
+
+  header.deleteLater(true, false);
+  body.deleteLater(true, false);
 
 #if defined(HARDWARE_TOUCH)
   Keyboard::hide();
 #endif
-}
 
-void Page::deleteLater()
-{
-  if (previousFocus) {
-    previousFocus->setFocus();
-  }
-
-  Window::deleteLater();
+  Window::deleteLater(detach, trash);
 }
 
 void Page::paint(BitmapBuffer * dc)
@@ -96,10 +84,8 @@ void Page::onEvent(event_t event)
 #if defined(HARDWARE_TOUCH)
 bool Page::onTouchEnd(coord_t x, coord_t y)
 {
-  if (Window::onTouchEnd(x, y))
-    return true;
-
   Keyboard::hide();
+  Window::onTouchEnd(x, y);
   return true;
 }
 #endif

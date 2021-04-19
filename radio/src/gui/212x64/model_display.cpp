@@ -91,7 +91,7 @@ void onTelemetryScriptFileSelectionMenu(const char *result)
   int screenIndex = DISPLAY_CURRENT_SCREEN(menuVerticalPosition);
 
   if (result == STR_UPDATE_LIST) {
-    if (!sdListFiles(SCRIPTS_TELEM_PATH, SCRIPTS_EXT, sizeof(g_model.screens[screenIndex].script.file), NULL)) {
+    if (!sdListFiles(SCRIPTS_TELEM_PATH, SCRIPTS_EXT, sizeof(g_model.screens[screenIndex].script.file), nullptr)) {
       POPUP_WARNING(STR_NO_SCRIPTS_ON_SD);
     }
   }
@@ -245,10 +245,10 @@ void menuModelDisplay(event_t event)
                 }
                 break;
               case 1:
-                bar.barMin = checkIncDec(event, bar.barMin, barMin, bar.barMax, EE_MODEL|NO_INCDEC_MARKS);
+                bar.barMin = checkIncDec(event, bar.barMin, barMin, barMax, EE_MODEL|NO_INCDEC_MARKS);
                 break;
               case 2:
-                bar.barMax = checkIncDec(event, bar.barMax, bar.barMin, barMax, EE_MODEL|NO_INCDEC_MARKS);
+                bar.barMax = checkIncDec(event, bar.barMax, barMin, barMax, EE_MODEL|NO_INCDEC_MARKS);
                 break;
             }
           }

@@ -20,14 +20,25 @@
 
 #include "opentx.h"
 
-#define HBP  42
-#define VBP  12
+#if defined(RADIO_T18)
+  #define HBP  43
+  #define VBP  12
 
-#define HSW  2
-#define VSW  10
+  #define HSW  2
+  #define VSW  4
 
-#define HFP  3
-#define VFP  2
+  #define HFP  8
+  #define VFP  8
+#else
+  #define HBP  42
+  #define VBP  12
+
+  #define HSW  2
+  #define VSW  10
+
+  #define HFP  3
+  #define VFP  2
+#endif
 
 #define LCD_FIRST_LAYER                0
 #define LCD_SECOND_LAYER               1
@@ -51,7 +62,12 @@ inline void LCD_NRST_HIGH()
   LCD_GPIO_NRST->BSRRL = LCD_GPIO_PIN_NRST;
 }
 
-static void LCD_AF_GPIOConfig(void)
+inline bool coordsWithinScreen(coord_t x, coord_t y, coord_t w, coord_t h)
+{
+  return x >= 0 && y >= 0 && x + w <= LCD_W && y + h <= LCD_H;
+}
+
+static void LCD_AF_GPIOConfig()
 {
   GPIO_InitTypeDef GPIO_InitStructure;
 
@@ -135,16 +151,20 @@ static void LCD_NRSTConfig(void)
   GPIO_Init(LCD_GPIO_NRST, &GPIO_InitStructure);
 }
 
-static void lcdReset()
+static void lcdReset(void)
 {
+#if defined(RADIO_T18)     // T18 screen has issues if NRST is ever brought low
+  NRST_HIGH();
+#else
   LCD_NRST_HIGH();
   delay_ms(1);
 
-  LCD_NRST_LOW(); // RESET;
+  LCD_NRST_LOW(); //  RESET();
   delay_ms(20);
 
   LCD_NRST_HIGH();
-  delay_ms(20);
+  delay_ms(30);
+#endif
 }
 
 void LCD_Init_LTDC()
@@ -201,7 +221,7 @@ void LCD_Init_LTDC()
   /* Configure total height */
   LTDC_InitStruct.LTDC_TotalHeigh = LCD_H + VBP + VFP;
 
-// init ltdc
+  // init ltdc
   LTDC_Init(&LTDC_InitStruct);
 
 #if 0
@@ -357,10 +377,13 @@ void lcdInit()
 
 void DMAFillRect(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 {
-#if defined(PCBX10)
+#if defined(LCD_VERTICAL_INVERT)
   x = destw - (x + w);
   y = desth - (y + h);
 #endif
+
+  if (dest == displayBuf && !coordsWithinScreen(x, y, w, h))
+    return;
 
   DMA2D_DeInit();
 
@@ -386,13 +409,16 @@ void DMAFillRect(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, ui
 
 void DMACopyBitmap(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, uint16_t y, const uint16_t * src, uint16_t srcw, uint16_t srch, uint16_t srcx, uint16_t srcy, uint16_t w, uint16_t h)
 {
-#if defined(PCBX10)
+#if defined(LCD_VERTICAL_INVERT)
   x = destw - (x + w);
   y = desth - (y + h);
   srcx = srcw - (srcx + w);
   srcy = srch - (srcy + h);
 #endif
 
+  if (dest == displayBuf && !coordsWithinScreen(x, y, w, h))
+    return;
+  
   DMA2D_DeInit();
 
   DMA2D_InitTypeDef DMA2D_InitStruct;
@@ -426,13 +452,16 @@ void DMACopyBitmap(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, 
 
 void DMACopyAlphaBitmap(uint16_t * dest, uint16_t destw, uint16_t desth, uint16_t x, uint16_t y, const uint16_t * src, uint16_t srcw, uint16_t srch, uint16_t srcx, uint16_t srcy, uint16_t w, uint16_t h)
 {
-#if defined(PCBX10)
+#if defined(LCD_VERTICAL_INVERT)
   x = destw - (x + w);
   y = desth - (y + h);
   srcx = srcw - (srcx + w);
   srcy = srch - (srcy + h);
 #endif
 
+  if (dest == displayBuf && !coordsWithinScreen(x, y, w, h))
+    return;
+  
   DMA2D_DeInit();
 
   DMA2D_InitTypeDef DMA2D_InitStruct;

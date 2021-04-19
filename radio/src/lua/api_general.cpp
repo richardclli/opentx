@@ -28,16 +28,24 @@
 
 #if defined(PCBX12S)
   #include "lua/lua_exports_x12s.inc"   // this line must be after lua headers
-#elif defined(RADIO_T16)
+#elif defined(RADIO_FAMILY_T16)
   #include "lua/lua_exports_t16.inc"
 #elif defined(PCBX10)
   #include "lua/lua_exports_x10.inc"
 #elif defined(PCBX9E)
   #include "lua/lua_exports_x9e.inc"
+#elif defined(RADIO_X7ACCESS)
+  #include "lua/lua_exports_x7access.inc"
 #elif defined(RADIO_X7)
   #include "lua/lua_exports_x7.inc"
 #elif defined(RADIO_T12)
   #include "lua/lua_exports_t12.inc"
+#elif defined(RADIO_TLITE)
+  #include "lua/lua_exports_tlite.inc"
+#elif defined(RADIO_TX12)
+  #include "lua/lua_exports_tx12.inc"
+#elif defined(RADIO_T8)
+  #include "lua/lua_exports_t8.inc"
 #elif defined(PCBX9LITES)
   #include "lua/lua_exports_x9lites.inc"
 #elif defined(PCBX9LITE)
@@ -46,6 +54,8 @@
   #include "lua/lua_exports_xlites.inc"
 #elif defined(PCBXLITE)
   #include "lua/lua_exports_xlite.inc"
+#elif defined(RADIO_X9DP2019)
+  #include "lua/lua_exports_x9d+2019.inc"
 #elif defined(PCBTARANIS)
   #include "lua/lua_exports_x9d.inc"
 #endif
@@ -63,6 +73,10 @@
   { "EVT_"#xxx"_BREAK", EVT_KEY_BREAK(yyy) }, \
   { "EVT_"#xxx"_LONG", EVT_KEY_LONG(yyy) }, \
   { "EVT_"#xxx"_REPT", EVT_KEY_REPT(yyy) }
+
+#if defined(LUA) && !defined(CLI)
+Fifo<uint8_t, LUA_FIFO_SIZE> * luaRxFifo = nullptr;
+#endif
 
 /*luadoc
 @function getVersion()
@@ -370,6 +384,26 @@ bool luaFindFieldByName(const char * name, LuaField & field, unsigned int flags)
 }
 
 /*luadoc
+@function getRotEncSpeed()
+
+Return rotary encoder current speed
+
+@retval number in list: ROTENC_LOWSPEED, ROTENC_MIDSPEED, ROTENC_HIGHSPEED
+        return 0 on radio without rotary encoder
+
+@status current Introduced in 2.3.10
+*/
+static int luaGetRotEncSpeed(lua_State * L)
+{
+#if defined(ROTARY_ENCODER_NAVIGATION)
+  lua_pushunsigned(L, rotencSpeed);
+#else
+  lua_pushunsigned(L, 0);
+#endif
+  return 1;
+}
+
+/*luadoc
 @function sportTelemetryPop()
 
 Pops a received SPORT packet from the queue. Please note that only packets using a data ID within 0x5000 to 0x50FF
@@ -438,18 +472,24 @@ When called without parameters, it will only return the status of the output buf
 
 @retval boolean  data queued in output buffer or not.
 
-@status current Introduced in 2.2.0
+@retval nil      incorrect telemetry protocol.
+
+@status current Introduced in 2.2.0, retval nil added in 2.3.4
 */
 
 static int luaSportTelemetryPush(lua_State * L)
 {
   if (!IS_FRSKY_SPORT_PROTOCOL()) {
-    lua_pushboolean(L, false);
+    lua_pushnil(L);
     return 1;
   }
 
   if (lua_gettop(L) == 0) {
     lua_pushboolean(L, outputTelemetryBuffer.isAvailable());
+    return 1;
+  }
+  else if (lua_gettop(L) > int(sizeof(SportTelemetryPacket))) {
+    lua_pushboolean(L, false);
     return 1;
   }
 
@@ -635,17 +675,23 @@ When called without parameters, it will only return the status of the output buf
 
 @retval boolean  data queued in output buffer or not.
 
-@status current Introduced in 2.2.0
+@retval nil      incorrect telemetry protocol.
+
+@status current Introduced in 2.2.0, retval nil added in 2.3.4
 */
 static int luaCrossfireTelemetryPush(lua_State * L)
 {
   if (telemetryProtocol != PROTOCOL_TELEMETRY_CROSSFIRE) {
-    lua_pushboolean(L, false);
+    lua_pushnil(L);
     return 1;
   }
 
   if (lua_gettop(L) == 0) {
     lua_pushboolean(L, outputTelemetryBuffer.isAvailable());
+  }
+  else if (lua_gettop(L) > TELEMETRY_OUTPUT_BUFFER_SIZE ) {
+    lua_pushboolean(L, false);
+    return 1;
   }
   else if (outputTelemetryBuffer.isAvailable()) {
     uint8_t command = luaL_checkunsigned(L, 1);
@@ -680,7 +726,8 @@ The list of valid sources is available:
 |----------------|-------|
 | 2.0 | [all](http://downloads-20.open-tx.org/firmware/lua_fields.txt) |
 | 2.1 | [X9D and X9D+](http://downloads-21.open-tx.org/firmware/lua_fields_taranis.txt), [X9E](http://downloads-21.open-tx.org/firmware/lua_fields_taranis_x9e.txt) |
-| 2.2 | [X9D and X9D+](http://downloads.open-tx.org/2.2/firmware/lua_fields_x9d.txt), [X9E](http://downloads.open-tx.org/2.2/firmware/lua_fields_x9e.txt), [Horus](http://downloads.open-tx.org/2.2/firmware/lua_fields_x12s.txt) |
+| 2.2 | [X9D and X9D+](http://downloads.open-tx.org/2.2/release/firmware/lua_fields_x9d.txt), [X9E](http://downloads.open-tx.org/2.2/release/firmware/lua_fields_x9e.txt), [Horus](http://downloads.open-tx.org/2.2/release/firmware/lua_fields_x12s.txt) |
+| 2.3 | [X9D and X9D+](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x9d.txt), [X9E](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x9e.txt), [X7](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x7.txt), [Horus](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x12s.txt) |
 
 @param name (string) name of the field
 
@@ -727,8 +774,8 @@ The list of fixed sources:
 |----------------|-------|
 | 2.0 | [all](http://downloads-20.open-tx.org/firmware/lua_fields.txt) |
 | 2.1 | [X9D and X9D+](http://downloads-21.open-tx.org/firmware/lua_fields_taranis.txt), [X9E](http://downloads-21.open-tx.org/firmware/lua_fields_taranis_x9e.txt) |
-| 2.2 | [X9D and X9D+](http://downloads.open-tx.org/2.2/firmware/lua_fields_x9d.txt), [X9E](http://downloads.open-tx.org/2.2/firmware/lua_fields_x9e.txt), [Horus](http://downloads.open-tx.org/2.2/firmware/lua_fields_x12s.txt) |
-
+| 2.2 | [X9D and X9D+](http://downloads.open-tx.org/2.2/release/firmware/lua_fields_x9d.txt), [X9E](http://downloads.open-tx.org/2.2/release/firmware/lua_fields_x9e.txt), [Horus](http://downloads.open-tx.org/2.2/release/firmware/lua_fields_x12s.txt) |
+| 2.3 | [X9D and X9D+](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x9d.txt), [X9E](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x9e.txt), [X7](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x7.txt), [Horus](http://downloads.open-tx.org/2.3/release/firmware/lua_fields_x12s.txt) |
 
 In OpenTX 2.1.x the telemetry sources no longer have a predefined name.
 To get a telemetry value simply use it's sensor name. For example:
@@ -828,7 +875,7 @@ Return the internal GPS position or nil if no valid hardware found
 static int luaGetTxGPS(lua_State * L)
 {
 #if defined(INTERNAL_GPS)
-  lua_createtable(L, 0, 7);
+  lua_createtable(L, 0, 8);
   lua_pushtablenumber(L, "lat", gpsData.latitude * 0.000001);
   lua_pushtablenumber(L, "lon", gpsData.longitude * 0.000001);
   lua_pushtableinteger(L, "numsat", gpsData.numSat);
@@ -1192,11 +1239,14 @@ static int luaPopupWarning(lua_State * L)
 }
 
 /*luadoc
-@function popupConfirmation(title, event)
+@function popupConfirmation(title, event) deprecated, please replace by
+@function popupConfirmation(title, message, event)
 
 Raises a pop-up on screen that asks for confirmation
 
-@param title (string) text to display
+@param title (string) title to display
+
+@param message (string) text to display
 
 @param event (number) the event variable that is passed in from the
 Run function (key pressed)
@@ -1205,13 +1255,24 @@ Run function (key pressed)
 
 @notice Use only from stand-alone and telemetry scripts.
 
-@status current Introduced in 2.2.0
+@status current Introduced in 2.2.0, changed to (title, message, event) in 2.3.8
 */
 static int luaPopupConfirmation(lua_State * L)
 {
-  event_t event = luaL_checkinteger(L, 2);
-  warningText = luaL_checkstring(L, 1);
   warningType = WARNING_TYPE_CONFIRM;
+  event_t event;
+
+  if (lua_isnone(L, 3)) {
+    // only two args: deprecated mode
+    warningText = luaL_checkstring(L, 1);
+    event = luaL_checkinteger(L, 2);
+  }
+  else {
+    warningText = luaL_checkstring(L, 1);
+    warningInfoText = luaL_checkstring(L, 2);
+    event = luaL_optinteger(L, 3, 0);
+  }
+
   runPopupWarning(event);
   if (!warningText) {
     lua_pushstring(L, warningResult ? "OK" : "CANCEL");
@@ -1350,7 +1411,10 @@ Get RSSI value as well as low and critical RSSI alarm levels (in dB)
 */
 static int luaGetRSSI(lua_State * L)
 {
-  lua_pushunsigned(L, min((uint8_t)99, TELEMETRY_RSSI()));
+  if (TELEMETRY_STREAMING())
+    lua_pushunsigned(L, min((uint8_t)99, TELEMETRY_RSSI()));
+  else
+    lua_pushunsigned(L, 0);
   lua_pushunsigned(L, g_model.rssiAlarms.getWarningRssi());
   lua_pushunsigned(L, g_model.rssiAlarms.getCriticalRssi());
   return 3;
@@ -1542,12 +1606,41 @@ static int luaMultiBuffer(lua_State * L)
 #endif
 
 /*luadoc
+@function setSerialBaudrate(baudrate)
+@param baudrate Desired baurate
+
+Set baudrate for serial port(s) affected to LUA
+
+@status current Introduced in 2.3.12
+*/
+static int luaSetSerialBaudrate(lua_State * L)
+{
+#if defined(AUX_SERIAL) || defined(AUX2_SERIAL)
+  unsigned int baudrate = luaL_checkunsigned(L, 1);
+#endif
+
+#if defined(AUX_SERIAL)
+  if (auxSerialMode == UART_MODE_LUA) {
+    auxSerialStop();
+    auxSerialSetup(baudrate, false);
+  }
+#endif
+#if defined(AUX2_SERIAL)
+  if (aux2SerialMode == UART_MODE_LUA) {
+    aux2SerialStop();
+    aux2SerialSetup(baudrate, false);
+  }
+#endif
+  return 1;
+}
+
+/*luadoc
 @function serialWrite(str)
 @param str (string) String to be written to the serial port.
 
 Writes a string to the serial port. The string is allowed to contain any character, including 0.
 
-@status current Introduced in TODO
+@status current Introduced in 2.3.10
 */
 static int luaSerialWrite(lua_State * L)
 {
@@ -1557,26 +1650,83 @@ static int luaSerialWrite(lua_State * L)
   if (!str || len < 1)
     return 0;
 
-#if !defined(SIMU)
-  #if defined(USB_SERIAL)
+#if defined(USB_SERIAL)
   if (getSelectedUsbMode() == USB_SERIAL_MODE) {
     size_t wr_len = len;
     const char* p = str;
     while(wr_len--) usbSerialPutc(*p++);
   }
-  #endif
-  #if defined(AUX_SERIAL)
+#endif
+
+#if defined(AUX_SERIAL)
   if (auxSerialMode == UART_MODE_LUA) {
     size_t wr_len = len;
     const char* p = str;
     while(wr_len--) auxSerialPutc(*p++);
   }
-  #endif
-#else
-  debugPrintf("luaSerialWrite: %.*s",len,str);
+#endif
+
+#if defined(AUX2_SERIAL)
+  if (aux2SerialMode == UART_MODE_LUA) {
+    size_t wr_len = len;
+    const char* p = str;
+    while(wr_len--) aux2SerialPutc(*p++);
+  }
 #endif
 
   return 0;
+}
+
+/*luadoc
+@function serialRead([num])
+@param num (optional): maximum number of bytes to read.
+                       If non-zero, serialRead will read up to num characters from the buffer.
+                       If 0 or left out, serialRead will read up to and including the first newline character or the end of the buffer.
+                       Note that the returned string may not end in a newline if this character is not present in the buffer.
+
+@retval str string. Empty if no new characters were available.
+
+Reads characters from the serial port. The string is allowed to contain any character, including 0.
+
+@status current Introduced in 2.3.8
+*/
+static int luaSerialRead(lua_State * L)
+{
+#if defined(LUA) && !defined(CLI)
+  int num = luaL_optunsigned(L, 1, 0);
+
+  if (!luaRxFifo) {
+    luaRxFifo = new Fifo<uint8_t, LUA_FIFO_SIZE>();
+    if (!luaRxFifo) {
+      lua_pushlstring(L, "", 0);
+      return 1;
+    }
+  }
+  uint8_t str[LUA_FIFO_SIZE];
+  uint8_t *p = str;
+  while (luaRxFifo->pop(*p)) {
+    p++;  // increment only when pop was successful
+    if (p - str >= LUA_FIFO_SIZE) {
+      // buffer full
+      break;
+    }
+    if (num == 0) {
+      if (*(p - 1) == '\n' || *(p - 1) == '\r') {
+        // found newline
+        break;
+      }
+    }
+    else if (p - str >= num) {
+      // requested number of characters reached
+      break;
+    }
+  }
+  lua_pushlstring(L, (const char*)str, p - str);
+#else
+  lua_pushlstring(L, "", 0);
+#endif
+
+  return 1;
 }
 
 const luaL_Reg opentxLib[] = {
@@ -1588,6 +1738,7 @@ const luaL_Reg opentxLib[] = {
   { "getVersion", luaGetVersion },
   { "getGeneralSettings", luaGetGeneralSettings },
   { "getGlobalTimer", luaGetGlobalTimer },
+  { "getRotEncSpeed", luaGetRotEncSpeed },
   { "getValue", luaGetValue },
   { "getRAS", luaGetRAS },
   { "getTxGPS", luaGetTxGPS },
@@ -1625,19 +1776,33 @@ const luaL_Reg opentxLib[] = {
 #if defined(MULTIMODULE)
   { "multiBuffer", luaMultiBuffer },
 #endif
+  { "setSerialBaudrate", luaSetSerialBaudrate },
   { "serialWrite", luaSerialWrite },
+  { "serialRead", luaSerialRead },
   { nullptr, nullptr }  /* sentinel */
 };
 
 const luaR_value_entry opentxConstants[] = {
   { "FULLSCALE", RESX },
+#if defined(COLORLCD)
+  { "XXLSIZE", FONT(XXL) },
+  { "DBLSIZE", FONT(XL) },
+  { "MIDSIZE", FONT(L) },
+  { "SMLSIZE", FONT(XS) },
+  { "TINSIZE", FONT(XXS) },
+#else
   { "XXLSIZE", XXLSIZE },
   { "DBLSIZE", DBLSIZE },
   { "MIDSIZE", MIDSIZE },
   { "SMLSIZE", SMLSIZE },
-  { "INVERS", INVERS },
-  { "BOLD", BOLD },
   { "BLINK", BLINK },
+  { "INVERS", INVERS },
+#endif
+#if defined(COLORLCD)
+  { "BOLD", FONT(BOLD) },
+#else
+  { "BOLD", BOLD },
+#endif
   { "RIGHT", RIGHT },
   { "LEFT", LEFT },
   { "CENTER", CENTERED },
@@ -1646,6 +1811,7 @@ const luaR_value_entry opentxConstants[] = {
   { "VALUE", INPUT_TYPE_VALUE },
   { "SOURCE", INPUT_TYPE_SOURCE },
   { "REPLACE", MLTPX_REP },
+  { "MIXSRC_MAX", MIXSRC_MAX },
   { "MIXSRC_FIRST_INPUT", MIXSRC_FIRST_INPUT },
   { "MIXSRC_Rud", MIXSRC_Rud },
   { "MIXSRC_Ele", MIXSRC_Ele },
@@ -1659,8 +1825,10 @@ const luaR_value_entry opentxConstants[] = {
   { "MIXSRC_SE", MIXSRC_SE },
   { "MIXSRC_SG", MIXSRC_SG },
 #endif
-#if !defined(PCBXLITE) && !defined(PCBX9LITE)
+#if defined(HARDWARE_SWITCH_F)
   { "MIXSRC_SF", MIXSRC_SF },
+#endif
+#if defined(HARDWARE_SWITCH_H)
   { "MIXSRC_SH", MIXSRC_SH },
 #endif
   { "MIXSRC_CH1", MIXSRC_CH1 },
@@ -1671,32 +1839,24 @@ const luaR_value_entry opentxConstants[] = {
   { "COLOR", ZoneOption::Color },
   { "BOOL", ZoneOption::Bool },
   { "STRING", ZoneOption::String },
-  { "CUSTOM_COLOR", CUSTOM_COLOR },
   { "DEFAULT_COLOR", DEFAULT_COLOR },
   { "DEFAULT_BGCOLOR", DEFAULT_BGCOLOR },
   { "FOCUS_COLOR", FOCUS_COLOR },
   { "FOCUS_BGCOLOR", FOCUS_BGCOLOR },
-  { "LINE_COLOR", LINE_COLOR },
-  { "CHECKBOX_COLOR", CHECKBOX_COLOR },
-  { "MENU_BGCOLOR", MENU_BGCOLOR },
-  { "MENU_COLOR", MENU_COLOR },
-  { "MENU_TITLE_DISABLE_COLOR", MENU_TITLE_DISABLE_COLOR },
-  { "ALARM_COLOR", ALARM_COLOR },
-  { "HIGHLIGHT_COLOR", HIGHLIGHT_COLOR },
-  { "TEXT_DISABLE_COLOR", TEXT_DISABLE_COLOR },
-  { "HEADER_COLOR", HEADER_COLOR },
   { "DISABLE_COLOR", DISABLE_COLOR },
-  { "CURVE_COLOR", CURVE_COLOR },
-  { "CURVE_CURSOR_COLOR", CURVE_CURSOR_COLOR },
-  { "TITLE_BGCOLOR", TITLE_BGCOLOR },
-  { "TRIM_BGCOLOR", TRIM_BGCOLOR },
-  { "TRIM_SHADOW_COLOR", TRIM_SHADOW_COLOR },
-  { "MAINVIEW_PANES_COLOR", MAINVIEW_PANES_COLOR },
-  { "MAINVIEW_GRAPHICS_COLOR", MAINVIEW_GRAPHICS_COLOR },
-  { "HEADER_BGCOLOR", HEADER_BGCOLOR },
-  { "HEADER_ICON_BGCOLOR", HEADER_ICON_BGCOLOR },
-  { "HEADER_CURRENT_BGCOLOR", HEADER_CURRENT_BGCOLOR },
+  { "HIGHLIGHT_COLOR", HIGHLIGHT_COLOR },
+  { "CHECKBOX_COLOR", CHECKBOX_COLOR },
+  { "SCROLLBAR_COLOR", SCROLLBAR_COLOR },
+  { "MENU_COLOR", MENU_COLOR },
+  { "MENU_BGCOLOR", MENU_BGCOLOR },
+  // TODO : FIX { "MENU_TITLE_BGCOLOR", MENU_TITLE_BGCOLOR },
+  { "MENU_LINE_COLOR", MENU_LINE_COLOR },
+  { "MENU_HIGHLIGHT_COLOR", MENU_HIGHLIGHT_COLOR },
+  { "MENU_HIGHLIGHT_BGCOLOR", MENU_HIGHLIGHT_BGCOLOR },
   { "OVERLAY_COLOR", OVERLAY_COLOR },
+  { "TABLE_BGCOLOR", TABLE_BGCOLOR },
+  { "TABLE_HEADER_BGCOLOR", TABLE_HEADER_BGCOLOR },
+  { "CUSTOM_COLOR", CUSTOM_COLOR },
   { "MENU_HEADER_HEIGHT", MENU_HEADER_HEIGHT },
   { "WHITE", (double)WHITE },
   { "GREY", (double)GREY },
@@ -1717,7 +1877,10 @@ const luaR_value_entry opentxConstants[] = {
   { "EVT_VIRTUAL_NEXT", EVT_ROTARY_RIGHT },
   { "EVT_VIRTUAL_DEC", EVT_ROTARY_LEFT },
   { "EVT_VIRTUAL_INC", EVT_ROTARY_RIGHT },
-#elif defined(PCBX9D) || defined(PCBX9DP)  // key reverted between field nav and value change
+  { "ROTENC_LOWSPEED", ROTENC_LOWSPEED },
+  { "ROTENC_MIDSPEED", ROTENC_MIDSPEED },
+  { "ROTENC_HIGHSPEED", ROTENC_HIGHSPEED },
+#elif defined(PCBX9D) || defined(PCBX9DP) || defined(RADIO_T8) // key reverted between field nav and value change
   { "EVT_VIRTUAL_PREV", EVT_KEY_FIRST(KEY_PLUS) },
   { "EVT_VIRTUAL_PREV_REPT", EVT_KEY_REPT(KEY_PLUS) },
   { "EVT_VIRTUAL_NEXT", EVT_KEY_FIRST(KEY_MINUS) },
@@ -1737,7 +1900,7 @@ const luaR_value_entry opentxConstants[] = {
   { "EVT_VIRTUAL_INC_REPT", EVT_KEY_REPT(KEY_UP) },
 #endif
 
-#if defined(NAVIGATION_9X) || defined(NAVIGATION_XLITE)
+#if defined(NAVIGATION_9X)
   { "EVT_VIRTUAL_PREV_PAGE", EVT_KEY_LONG(KEY_LEFT) },
   { "EVT_VIRTUAL_NEXT_PAGE", EVT_KEY_BREAK(KEY_LEFT) },
   { "EVT_VIRTUAL_MENU", EVT_KEY_BREAK(KEY_RIGHT) },
@@ -1745,11 +1908,26 @@ const luaR_value_entry opentxConstants[] = {
   { "EVT_VIRTUAL_ENTER", EVT_KEY_BREAK(KEY_ENTER) },
   { "EVT_VIRTUAL_ENTER_LONG", EVT_KEY_LONG(KEY_ENTER) },
   { "EVT_VIRTUAL_EXIT", EVT_KEY_BREAK(KEY_EXIT) },
+#elif defined(NAVIGATION_XLITE)
+  { "EVT_VIRTUAL_PREV_PAGE", EVT_KEY_LONG(KEY_LEFT) },
+  { "EVT_VIRTUAL_NEXT_PAGE", EVT_KEY_LONG(KEY_RIGHT) },
+  { "EVT_VIRTUAL_MENU", EVT_KEY_BREAK(KEY_SHIFT) },
+  { "EVT_VIRTUAL_MENU_LONG", EVT_KEY_LONG(KEY_SHIFT) },
+  { "EVT_VIRTUAL_ENTER", EVT_KEY_BREAK(KEY_ENTER) },
+  { "EVT_VIRTUAL_ENTER_LONG", EVT_KEY_LONG(KEY_ENTER) },
+  { "EVT_VIRTUAL_EXIT", EVT_KEY_BREAK(KEY_EXIT) },
 #elif defined(NAVIGATION_X7) || defined(NAVIGATION_X9D)
+#if defined(RADIO_TX12) || defined(RADIO_T8)
+  { "EVT_VIRTUAL_PREV_PAGE", EVT_KEY_BREAK(KEY_PAGEUP) },
+  { "EVT_VIRTUAL_NEXT_PAGE", EVT_KEY_BREAK(KEY_PAGEDN) },
+  { "EVT_VIRTUAL_MENU", EVT_KEY_BREAK(KEY_MODEL) },
+  { "EVT_VIRTUAL_MENU_LONG", EVT_KEY_LONG(KEY_MODEL) },
+#else
   { "EVT_VIRTUAL_PREV_PAGE", EVT_KEY_LONG(KEY_PAGE) },
   { "EVT_VIRTUAL_NEXT_PAGE", EVT_KEY_BREAK(KEY_PAGE) },
   { "EVT_VIRTUAL_MENU", EVT_KEY_BREAK(KEY_MENU) },
   { "EVT_VIRTUAL_MENU_LONG", EVT_KEY_LONG(KEY_MENU) },
+#endif
   { "EVT_VIRTUAL_ENTER", EVT_KEY_BREAK(KEY_ENTER) },
   { "EVT_VIRTUAL_ENTER_LONG", EVT_KEY_LONG(KEY_ENTER) },
   { "EVT_VIRTUAL_EXIT", EVT_KEY_BREAK(KEY_EXIT) },
@@ -1768,9 +1946,7 @@ const luaR_value_entry opentxConstants[] = {
   { "EVT_VIRTUAL_EXIT", EVT_KEY_BREAK(KEY_EXIT) },
 #endif
 
-#if defined(KEYS_GPIO_REG_EXIT)
   { "EVT_EXIT_BREAK", EVT_KEY_BREAK(KEY_EXIT) },
-#endif
 
 #if defined(KEYS_GPIO_REG_ENTER)
   KEY_EVENTS(ENTER, KEY_ENTER),
@@ -1853,8 +2029,6 @@ const luaR_value_entry opentxConstants[] = {
   { "PLAY_BACKGROUND", PLAY_BACKGROUND },
   { "TIMEHOUR", TIMEHOUR },
 
-#if defined(PCBHORUS)
-  // Adding the unit consts for the set Telemetry function adds about 1k of flash usage
   {"UNIT_RAW", UNIT_RAW },
   {"UNIT_VOLTS", UNIT_VOLTS },
   {"UNIT_AMPS", UNIT_AMPS },
@@ -1865,6 +2039,7 @@ const luaR_value_entry opentxConstants[] = {
   {"UNIT_KMH", UNIT_KMH },
   {"UNIT_MPH", UNIT_MPH },
   {"UNIT_METERS", UNIT_METERS },
+  {"UNIT_KM", UNIT_KM },
   {"UNIT_FEET", UNIT_FEET },
   {"UNIT_CELSIUS", UNIT_CELSIUS },
   {"UNIT_FAHRENHEIT", UNIT_FAHRENHEIT },
@@ -1880,6 +2055,9 @@ const luaR_value_entry opentxConstants[] = {
   {"UNIT_MILLILITERS", UNIT_MILLILITERS },
   {"UNIT_FLOZ", UNIT_FLOZ },
   {"UNIT_MILLILITERS_PER_MINUTE", UNIT_MILLILITERS_PER_MINUTE },
+  {"UNIT_HERTZ", UNIT_HERTZ },
+  {"UNIT_MS", UNIT_MS },
+  {"UNIT_US", UNIT_US },
   {"UNIT_HOURS", UNIT_HOURS },
   {"UNIT_MINUTES", UNIT_MINUTES },
   {"UNIT_SECONDS", UNIT_SECONDS },
@@ -1888,6 +2066,6 @@ const luaR_value_entry opentxConstants[] = {
   {"UNIT_GPS", UNIT_GPS},
   {"UNIT_BITFIELD", UNIT_BITFIELD},
   {"UNIT_TEXT", UNIT_TEXT},
-#endif
+
   { nullptr, 0 }  /* sentinel */
 };

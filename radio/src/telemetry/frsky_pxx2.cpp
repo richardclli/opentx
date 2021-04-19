@@ -86,6 +86,15 @@ void processReceiverSettingsFrame(uint8_t module, const uint8_t * frame)
   if (frame[4] & PXX2_RX_SETTINGS_FLAG1_TELEMETRY_DISABLED)
     destination->telemetryDisabled = 1;
 
+  if (frame[4] & PXX2_RX_SETTINGS_FLAG1_TELEMETRY_25MW)
+    destination->telemetry25mw = 1;
+
+  if (frame[4] & PXX2_RX_SETTINGS_FLAG1_ENABLE_PWM_CH5_CH6)
+    destination->enablePwmCh5Ch6 = 1;
+
+  if (frame[4] & PXX2_RX_SETTINGS_FLAG1_FPORT2)
+    destination->fport2 = 1;
+
   uint8_t outputsCount = min<uint8_t>(16, frame[0] - 4);
   destination->outputsCount = outputsCount;
   for (uint8_t pin = 0; pin < outputsCount; pin++) {
@@ -111,7 +120,7 @@ void processRegisterFrame(uint8_t module, const uint8_t * frame)
         reusableBuffer.moduleSetup.pxx2.registerLoopIndex = frame[12];
         reusableBuffer.moduleSetup.pxx2.registerStep = REGISTER_RX_NAME_RECEIVED;
 #if defined(COLORLCD)
-        putEvent(EVT_REFRESH);
+        pushEvent(EVT_REFRESH);
 #endif
       }
       break;
@@ -119,8 +128,8 @@ void processRegisterFrame(uint8_t module, const uint8_t * frame)
     case 0x01:
       if (reusableBuffer.moduleSetup.pxx2.registerStep == REGISTER_RX_NAME_SELECTED) {
         // RX_NAME + PASSWORD follow, we check they are good
-        if (cmpStrWithZchar((char *)&frame[4], reusableBuffer.moduleSetup.pxx2.registerRxName, PXX2_LEN_RX_NAME) &&
-            cmpStrWithZchar((char *)&frame[12], g_model.modelRegistrationID, PXX2_LEN_REGISTRATION_ID)) {
+        if (memcmp(&frame[4], reusableBuffer.moduleSetup.pxx2.registerRxName, PXX2_LEN_RX_NAME) == 0 &&
+            memcmp(&frame[12], g_model.modelRegistrationID, PXX2_LEN_REGISTRATION_ID) == 0) {
           reusableBuffer.moduleSetup.pxx2.registerStep = REGISTER_OK;
           moduleState[module].mode = MODULE_MODE_NORMAL;
 #if !defined(COLORLCD)

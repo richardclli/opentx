@@ -18,15 +18,17 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _CHANNELS_H_
-#define _CHANNELS_H_
+#pragma once
 
 #include "helpers.h"
 #include "modeledit.h"
 
 #include <QtCore>
 
-constexpr char MIMETYPE_CHN[] = "application/x-companion-chn";
+class CompoundItemModelFactory;
+class FilteredItemModelFactory;
+
+constexpr char MIMETYPE_CHANNEL[] = "application/x-companion-channel";
 
 class GVarGroup;
 
@@ -35,7 +37,8 @@ class LimitsGroup
   Q_DECLARE_TR_FUNCTIONS(LimitsGroup)
 
   public:
-    LimitsGroup(Firmware * firmware, TableLayout * tableLayout, int row, int col, int & value, const ModelData & model, int min, int max, int deflt, ModelPanel * panel=NULL);
+    LimitsGroup(Firmware * firmware, TableLayout * tableLayout, int row, int col, int & value, const ModelData & model,
+                int min, int max, int deflt, FilteredItemModel * gvarModel, ModelPanel * panel = nullptr);
     ~LimitsGroup();
 
     void setValue(int val);
@@ -47,15 +50,17 @@ class LimitsGroup
     GVarGroup *gvarGroup;
     int &value;
     double displayStep;
+    QCheckBox *gv;
 };
 
-class Channels : public ModelPanel
+class ChannelsPanel : public ModelPanel
 {
     Q_OBJECT
 
   public:
-    Channels(QWidget * parent, ModelData & model, GeneralSettings & generalSettings, Firmware * firmware);
-    ~Channels();
+    ChannelsPanel(QWidget * parent, ModelData & model, GeneralSettings & generalSettings, Firmware * firmware,
+                  CompoundItemModelFactory * sharedItemModels);
+    virtual ~ChannelsPanel();
 
   public slots:
     void refreshExtendedLimits();
@@ -68,19 +73,24 @@ class Channels : public ModelPanel
     void ppmcenterEdited();
     void update();
     void updateLine(int index);
-    void chnDelete();
-    void chnCopy();
-    void chnPaste();
-    void chnCut();
-    void chnMoveUp();
-    void chnMoveDown();
-    void chnInsert();
-    void chnClear();
-    void chnClearAll();
-    void chn_customContextMenuRequested(QPoint pos);
+    void cmDelete();
+    void cmCopy();
+    void cmPaste();
+    void cmCut();
+    void cmMoveUp();
+    void cmMoveDown();
+    void cmInsert();
+    void cmClear(bool prompt = true);
+    void cmClearAll();
+    void onCustomContextMenuRequested(QPoint pos);
+    void onItemModelAboutToBeUpdated();
+    void onItemModelUpdateComplete();
 
   private:
-    void swapChnData(int idx1, int idx2);
+    bool hasClipboardData(QByteArray * data = nullptr) const;
+    bool insertAllowed() const;
+    bool moveDownAllowed() const;
+    bool moveUpAllowed() const;
     QLineEdit *name[CPN_MAX_CHNOUT];
     LimitsGroup *chnOffset[CPN_MAX_CHNOUT];
     LimitsGroup *chnMin[CPN_MAX_CHNOUT];
@@ -89,8 +99,10 @@ class Channels : public ModelPanel
     QComboBox *curveCB[CPN_MAX_CHNOUT];
     QSpinBox *centerSB[CPN_MAX_CHNOUT];
     QCheckBox *symlimitsChk[CPN_MAX_CHNOUT];
-    int selectedChannel;
+    int selectedIndex;
     int chnCapability;
+    CompoundItemModelFactory *sharedItemModels;
+    void updateItemModels();
+    void connectItemModelEvents(const FilteredItemModel * itemModel);
+    FilteredItemModelFactory *dialogFilteredItemModels;
 };
-
-#endif // _CHANNELS_H_

@@ -27,6 +27,7 @@
 
 #define SWAP_DEFINED
 #include "opentx.h"
+#include "model_init.h"
 
 #define CHANNEL_MAX (1024*256)
 
@@ -65,6 +66,7 @@ inline void MODEL_RESET()
   memset(&anaInValues, 0, sizeof(anaInValues));
   extern uint8_t s_mixer_first_run_done;
   s_mixer_first_run_done = false;
+  evalMixes(1);  // this is needed to reset fp_act
   lastFlightMode = 255;
 }
 
@@ -103,7 +105,7 @@ class OpenTxTest : public testing::Test
       SYSTEM_RESET();
       MODEL_RESET();
       MIXER_RESET();
-      modelDefault(0);
+      setModelDefaults(0);
       RADIO_RESET();
     }
 };

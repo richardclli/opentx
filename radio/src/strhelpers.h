@@ -24,8 +24,8 @@
 #include "opentx_types.h"
 
 char * strAppend(char * dest, const char * source, int len = 0);
-char * strAppendUnsigned(char * dest, uint32_t value, uint8_t digits=0, uint8_t radix=10);
-char * strAppendSigned(char * dest, int32_t value, uint8_t digits=0, uint8_t radix=10);
+char * strAppendUnsigned(char * dest, uint32_t value, uint8_t digits = 0, uint8_t radix = 10);
+char * strAppendSigned(char * dest, int32_t value, uint8_t digits = 0, uint8_t radix = 10);
 char * strSetCursor(char * dest, int position);
 char * strAppendDate(char * str, bool time=false);
 char * strAppendFilename(char * dest, const char * filename, const int size);
@@ -34,7 +34,7 @@ char * strAppendFilename(char * dest, const char * filename, const int size);
 char * getStringAtIndex(char * dest, const char * s, int idx);
 char * strAppendStringWithIndex(char * dest, const char * s, int idx);
 #define LEN_TIMER_STRING               10 // "-00:00:00"
-char * getTimerString(char * dest, int32_t tme, uint8_t hours=0);
+char * getTimerString(char * dest, int tme, uint8_t hours=0);
 char * getCurveString(char * dest, int idx);
 char * getGVarString(char * dest, int idx);
 char * getGVarString(int idx);

@@ -20,12 +20,13 @@ set(GUI_SRC
   tabsgroup.cpp
   page.cpp
   fab_button.cpp
-  #  topbar.cpp
+  topbar.cpp
   layout.cpp
-  #  widget.cpp
+  widget.cpp
+  widget_settings.cpp
   ${THEMES_SRC}
   ${LAYOUTS_SRC}
-  #  ${WIDGETS_SRC}
+  ${WIDGETS_SRC}
   #  popups.cpp
   draw_functions.cpp
   #  menus.cpp
@@ -48,13 +49,16 @@ set(GUI_SRC
   radio_trainer.cpp
   radio_version.cpp
   radio_hardware.cpp
+  radio_diagkeys.cpp
+  radio_diaganas.cpp
   radio_calibration.cpp
   view_main.cpp
+  view_channels.cpp
+  view_logical_switches.cpp
+  view_statistics.cpp
   menu_screen.cpp
   screen_setup.cpp
   switch_warn_dialog.cpp
-
-  #  view_statistics.cpp
   )
 
 macro(add_gui_src src)
@@ -76,8 +80,12 @@ if(PXX2 OR MULTIMODULE)
   add_gui_src(radio_spectrum_analyser.cpp)
 endif()
 
+if(GHOST)
+  add_gui_src(radio_ghost_module_config.cpp)
+endif()
+
 if(LUA STREQUAL YES)
-  # TODO set(SRC ${SRC} lua/widgets.cpp)
+  set(SRC ${SRC} lua/widgets.cpp)
   # TODO set(GUI_SRC ${GUI_SRC} model_custom_scripts.cpp)
 endif()
 

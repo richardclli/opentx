@@ -5,12 +5,13 @@ import argparse
 import os
 import sys
 from PIL import Image, ImageDraw, ImageFont
-from charset import get_chars, special_chars, extra_chars
+from charset import get_chars, special_chars, extra_chars, standard_chars
 
 
 class FontBitmap:
-    def __init__(self, chars, font_size, font_name, cjk_font_name, foreground, background):
-        self.chars = chars
+    def __init__(self, language, font_size, font_name, cjk_font_name, foreground, background):
+        self.language = language
+        self.chars = get_chars(language)
         self.font_size = font_size
         self.foreground = foreground
         self.background = background
@@ -44,22 +45,24 @@ class FontBitmap:
         return False
 
     @staticmethod
-    def is_column_needed(px, x, height):
+    def is_column_needed(px, x, height, debug=False):
         for y in range(height):
-            if sum(px[x, y]) <= 3 * 0xC6:
+            if debug:
+                print(x, y, px[x, y])
+            if px[x, y] != (255, 255, 255):
                 return True
         return False
 
-    def get_real_size(self, image):
+    def get_real_size(self, image, debug=False):
         px = image.load()
         left = 0
         while left < image.width:
-            if self.is_column_needed(px, left, image.height):
+            if self.is_column_needed(px, left, image.height, debug):
                 break
             left += 1
         right = image.width - 1
         while right > left:
-            if self.is_column_needed(px, right, image.height):
+            if self.is_column_needed(px, right, image.height, debug):
                 break
             right -= 1
         top = 0
@@ -74,17 +77,16 @@ class FontBitmap:
             bottom -= 1
         return left, top, right, bottom
 
-    def draw_char(self, image, x, c, font):
+    def draw_char(self, image, x, c, font, offset_y=0):
         size = font.font.getsize(c)
         width = size[0][0]
-        offset = size[1][0]
-        char_image = Image.new("RGB", (width, image.height), self.background)
+        offset_x = size[1][0]
+        char_image = Image.new("RGB", (width + 10, image.height), self.background)
         draw = ImageDraw.Draw(char_image)
-        draw.text((-offset, 0), c, fill=self.foreground, font=font)
-        left, _, right, _ = self.get_real_size(char_image)
+        draw.text((-offset_x, offset_y), c, fill=self.foreground, font=font)
         if image:
-            image.paste(char_image.crop((left, 0, right + 1, image.height)), (x, 0))
-        return right - left + 1
+            image.paste(char_image.crop((0, 0, width, image.height)), (x, 0))
+        return width
 
     def generate(self, filename, generate_coords_file=True):
         coords = []
@@ -92,24 +94,34 @@ class FontBitmap:
 
         width = 0
         for c in self.chars:
-            coords.append(width)
-
             if c == " ":
-                width += 4
-            elif c in special_chars["cn"]:
-                width += self.draw_char(image, width, c, self.cjk_font)
-            elif c not in extra_chars:
-                width += self.draw_char(image, width, c, self.font)
+                w = 4
+            elif c in extra_chars:
+                if self.extra_bitmap:
+                    for i in range(128 - 32 - len(standard_chars)):
+                        coords.append(width)
+                    image.paste(self.extra_bitmap.copy(), (width, 0))
+                    for coord in [14, 14, 12, 12, 13, 13, 13, 13, 13] + [15] * 12:
+                        coords.append(width)
+                        width += coord
+                    self.extra_bitmap = None
+                continue
+            elif c in special_chars[self.language]:
+                w = self.draw_char(image, width, c, self.cjk_font, -3)
+            else:
+                w = self.draw_char(image, width, c, self.font)
+
+            coords.append(width)
+            width += w
+
         coords.append(width)
 
         _, top, _, bottom = self.get_real_size(image)
 
-        if self.extra_bitmap:
-            image.paste(self.extra_bitmap.copy(), (width, top))
-            width += self.extra_bitmap.width
-
-        image = image.crop((0, top, width, bottom))
-        coords.insert(0, bottom - top)
+        top = 1
+        # bottom = self.font_size
+        image = image.crop((0, top, width - 1, bottom))
+        coords.insert(0, bottom - top + 1)
 
         image.save(filename + ".png")
         if generate_coords_file:
@@ -124,13 +136,13 @@ def main():
 
     parser = argparse.ArgumentParser(description="Builder for OpenTX font files")
     parser.add_argument('--output', help="Output file name")
-    parser.add_argument('--subset', help="Subset", default="all")
+    parser.add_argument('--subset', help="Subset")
     parser.add_argument('--size', type=int, help="Font size")
     parser.add_argument('--font', help="Font name")
     parser.add_argument('--cjk-font', help="CJK font name")
     args = parser.parse_args()
 
-    font = FontBitmap(get_chars(args.subset), args.size, args.font, args.cjk_font, (0, 0, 0), (255, 255, 255))
+    font = FontBitmap(args.subset, args.size, args.font, args.cjk_font, (0, 0, 0), (255, 255, 255))
     font.generate(args.output)
 
 

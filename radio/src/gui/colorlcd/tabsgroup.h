@@ -23,6 +23,7 @@
 #include <vector>
 #include "button.h"
 #include "form.h"
+#include "keyboard_base.h"
 
 class TabsGroup;
 
@@ -31,6 +32,10 @@ class PageTab {
   friend class TabsGroup;
 
   public:
+    PageTab()
+    {
+    }
+
     PageTab(std::string title, unsigned icon):
       title(std::move(title)),
       icon(icon)
@@ -63,6 +68,11 @@ class PageTab {
       title = std::move(value);
     }
 
+    void setIcon(unsigned icon)
+    {
+      this->icon = icon;
+    }
+
     unsigned getIcon() const
     {
       return icon;
@@ -70,7 +80,7 @@ class PageTab {
 
   protected:
     std::string title;
-    unsigned icon;
+    unsigned icon = 0;
     std::function<void()> onPageDestroyed;
 };
 
@@ -79,7 +89,7 @@ class TabsCarousel: public Window {
     TabsCarousel(Window * parent, TabsGroup * menu);
 
 #if defined(DEBUG_WINDOWS)
-    std::string getName() override
+    std::string getName() const override
     {
       return "TabsCarousel";
     }
@@ -115,10 +125,22 @@ class TabsGroupHeader: public FormGroup {
   public:
     TabsGroupHeader(TabsGroup * menu, uint8_t icon);
 
-    ~TabsGroupHeader() override;
+    void deleteLater(bool detach = true, bool trash = true) override
+    {
+      if (_deleted)
+        return;
+
+#if defined(HARDWARE_TOUCH)
+      back.deleteLater(true, false);
+#endif
+
+      carousel.deleteLater(true, false);
+
+      FormField::deleteLater(detach, trash);
+    }
 
 #if defined(DEBUG_WINDOWS)
-    std::string getName() override
+    std::string getName() const override
     {
       return "TabsGroupHeader";
     }
@@ -140,7 +162,8 @@ class TabsGroupHeader: public FormGroup {
     const char * title = nullptr;
 };
 
-class TabsGroup: public Window {
+class TabsGroup: public Window
+{
     friend class TabsCarousel;
 
   public:
@@ -148,8 +171,23 @@ class TabsGroup: public Window {
 
     ~TabsGroup() override;
 
+    void deleteLater(bool detach = true, bool trash = true) override
+    {
+      if (_deleted)
+        return;
+
+#if defined(HARDWARE_TOUCH)
+      Keyboard::hide();
+#endif
+
+      header.deleteLater(true, false);
+      body.deleteLater(true, false);
+
+      Window::deleteLater(detach, trash);
+    }
+
 #if defined(DEBUG_WINDOWS)
-    std::string getName() override
+    std::string getName() const override
     {
       return "TabsGroup";
     }

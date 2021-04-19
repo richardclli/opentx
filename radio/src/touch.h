@@ -2,7 +2,7 @@
  * Copyright (C) OpenTX
  *
  * Based on code named
- *   th9x - http://code.google.com/p/th9x 
+ *   th9x - http://code.google.com/p/th9x
  *   er9x - http://code.google.com/p/er9x
  *   gruvin9x - http://code.google.com/p/gruvin9x
  *
@@ -27,19 +27,20 @@ enum TouchEvent
     TE_DOWN,
     TE_UP,
     TE_SLIDE,
-    TE_END
+    TE_SLIDE_END
 };
 
 struct TouchState
 {
-   unsigned char event;
-   short x;
-   short y;
-   short startX;
-   short startY;
-   short lastX;
-   short lastY;
-   uint32_t time;
+  unsigned char event;
+  short x;
+  short y;
+  short startX;
+  short startY;
+  short deltaX;
+  short deltaY;
+  short lastDeltaX;
+  short lastDeltaY;
 };
 
 constexpr uint8_t SLIDE_RANGE = 6;

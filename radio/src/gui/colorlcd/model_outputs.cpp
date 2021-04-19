@@ -59,7 +59,7 @@ class OutputEditWindow : public Page {
 
       // Offset
       new StaticText(window, grid.getLabelSlot(), TR_LIMITS_HEADERS_SUBTRIM);
-      new NumberEdit(window, grid.getFieldSlot(), -1000, +1000, GET_SET_DEFAULT(output->offset), PREC1);
+      new NumberEdit(window, grid.getFieldSlot(), -1000, +1000, GET_SET_DEFAULT(output->offset), 0, PREC1);
       grid.nextLine();
 
       // Min
@@ -67,7 +67,7 @@ class OutputEditWindow : public Page {
       new NumberEdit(window, grid.getFieldSlot(), -limit, 0,
                      GET_VALUE(output->min - 1000),
                      SET_VALUE(output->min, newValue + 1000),
-                     PREC1);
+                     0, PREC1);
       grid.nextLine();
 
       // Max
@@ -75,11 +75,11 @@ class OutputEditWindow : public Page {
       new NumberEdit(window, grid.getFieldSlot(), 0, +limit,
                      GET_VALUE(output->max + 1000),
                      SET_VALUE(output->max, newValue - 1000),
-                     PREC1);
+                     0, PREC1);
       grid.nextLine();
 
       // Direction
-      new StaticText(window, grid.getLabelSlot(), "Inverted"); // TODO translation
+      new StaticText(window, grid.getLabelSlot(), STR_INVERTED);
       new CheckBox(window, grid.getFieldSlot(), GET_SET_DEFAULT(output->revert));
       grid.nextLine();
 
@@ -98,9 +98,9 @@ class OutputEditWindow : public Page {
                      SET_VALUE(output->ppmCenter, newValue - PPM_CENTER));
       grid.nextLine();
 
-      // PPM center
+      // Subtrims mode
       new StaticText(window, grid.getLabelSlot(), TR_LIMITS_HEADERS_SUBTRIMMODE);
-      new Choice(window, grid.getFieldSlot(), "\001\306=", 0, 1, GET_SET_DEFAULT(output->symetrical));
+      new Choice(window, grid.getFieldSlot(), STR_SUBTRIMMODES, 0, 1, GET_SET_DEFAULT(output->symetrical));
       grid.nextLine();
 
       window->setInnerHeight(grid.getWindowHeight());
@@ -125,7 +125,7 @@ class OutputLineButton : public Button {
       dc->drawNumber(68, FIELD_PADDING_TOP, output->max + 1000, PREC1);
       dc->drawNumber(132, FIELD_PADDING_TOP, output->offset, PREC1);
       dc->drawNumber(226, FIELD_PADDING_TOP, PPM_CENTER + output->ppmCenter, RIGHT);
-      dc->drawText(228, FIELD_PADDING_TOP - 3, output->symetrical ? "=" : "\306");
+      dc->drawText(228, FIELD_PADDING_TOP, output->symetrical ? "=" : "\206");
 
       // second line
       if (output->revert) {
@@ -176,7 +176,7 @@ void ModelOutputsPage::build(FormWindow * window, int8_t focusChannel)
     // Channel settings
     Button * button = new OutputLineButton(window, grid.getFieldSlot(), output);
     button->setPressHandler([=]() -> uint8_t {
-      Menu * menu = new Menu();
+      Menu * menu = new Menu(window);
       menu->addLine(STR_EDIT, [=]() {
         editOutput(window, ch);
       });
@@ -205,7 +205,7 @@ void ModelOutputsPage::build(FormWindow * window, int8_t focusChannel)
     });
 
     if (focusChannel == ch) {
-      button->setFocus();
+      button->setFocus(SET_FOCUS_DEFAULT);
     }
 
     grid.spacer(button->height() + 5);
@@ -218,6 +218,7 @@ void ModelOutputsPage::build(FormWindow * window, int8_t focusChannel)
 
 void ModelOutputsPage::editOutput(FormWindow * window, uint8_t channel)
 {
+  Window::clearFocus();
   Window * editWindow = new OutputEditWindow(channel);
   editWindow->setCloseHandler([=]() {
     rebuild(window, channel);

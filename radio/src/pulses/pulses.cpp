@@ -21,6 +21,7 @@
 #include "opentx.h"
 #include "io/frsky_pxx2.h"
 #include "pulses/pxx2.h"
+#include "mixer_scheduler.h"
 
 uint8_t s_pulses_paused = 0;
 ModuleState moduleState[NUM_MODULES];
@@ -28,6 +29,7 @@ InternalModulePulsesData intmodulePulsesData __DMA;
 ExternalModulePulsesData extmodulePulsesData __DMA;
 TrainerPulsesData trainerPulsesData __DMA;
 
+//use only for PXX
 void ModuleState::startBind(BindInformation * destination, ModuleCallback bindCallback)
 {
   bindInformation = destination;
@@ -38,6 +40,56 @@ void ModuleState::startBind(BindInformation * destination, ModuleCallback bindCa
   strcpy(bindInformation->candidateReceiversNames[0], "SimuRX1");
   strcpy(bindInformation->candidateReceiversNames[1], "SimuRX2");
 #endif
+}
+
+void getModuleStatusString(uint8_t moduleIdx, char * statusText)
+{
+  *statusText = 0;
+#if defined(MULTIMODULE)
+  if (isModuleMultimodule(moduleIdx)) {
+    //change it
+    getMultiModuleStatus(moduleIdx).getStatusString(statusText);
+  }
+#endif
+#if defined(AFHDS3)
+  if (moduleIdx == EXTERNAL_MODULE && isModuleAFHDS3(moduleIdx)) {
+    extmodulePulsesData.afhds3.getStatusString(statusText);
+  }
+#endif
+}
+
+void getModuleSyncStatusString(uint8_t moduleIdx, char * statusText)
+{
+  *statusText = 0;
+#if defined(MULTIMODULE)
+  if (isModuleMultimodule(moduleIdx)) {
+    getModuleSyncStatus(moduleIdx).getRefreshString(statusText);
+  }
+#endif
+#if defined(AFHDS3)
+  if (moduleIdx == EXTERNAL_MODULE && isModuleAFHDS3(moduleIdx)) {
+    extmodulePulsesData.afhds3.getPowerStatus(statusText);
+  }
+#endif
+}
+
+#if defined(AFHDS3)
+uint8_t actualAfhdsRunPower(int moduleIndex)
+{
+  if (moduleIndex == EXTERNAL_MODULE && isModuleAFHDS3(moduleIndex)) {
+    return (uint8_t)extmodulePulsesData.afhds3.actualRunPower();
+  }
+  return 0;
+}
+#endif
+
+ModuleSettingsMode getModuleMode(int moduleIndex)
+{
+  return (ModuleSettingsMode)moduleState[moduleIndex].mode;
+}
+void setModuleMode(int moduleIndex, ModuleSettingsMode mode)
+{
+  moduleState[moduleIndex].mode = mode;
 }
 
 uint8_t getModuleType(uint8_t module)
@@ -82,7 +134,6 @@ uint8_t getRequiredProtocol(uint8_t module)
 
 #if defined(HARDWARE_EXTERNAL_MODULE_SIZE_SML)
     case MODULE_TYPE_R9M_LITE_PXX1:
-    case MODULE_TYPE_R9M_LITE_PRO_PXX1:
       protocol = PROTOCOL_CHANNELS_PXX1_SERIAL;
       break;
 
@@ -136,6 +187,18 @@ uint8_t getRequiredProtocol(uint8_t module)
       break;
 #endif
 
+#if defined(AFHDS3)
+    case MODULE_TYPE_AFHDS3:
+      protocol = PROTOCOL_CHANNELS_AFHDS3;
+      break;
+#endif
+
+#if defined(GHOST)
+    case MODULE_TYPE_GHOST:
+      protocol = PROTOCOL_CHANNELS_GHOST;
+      break;
+#endif
+
     default:
       protocol = PROTOCOL_CHANNELS_NONE;
       break;
@@ -155,6 +218,7 @@ uint8_t getRequiredProtocol(uint8_t module)
   return protocol;
 }
 
+#if defined(HARDWARE_EXTERNAL_MODULE)
 void enablePulsesExternalModule(uint8_t protocol)
 {
   // start new protocol hardware here
@@ -163,12 +227,14 @@ void enablePulsesExternalModule(uint8_t protocol)
 #if defined(PXX1)
     case PROTOCOL_CHANNELS_PXX1_PULSES:
       extmodulePxx1PulsesStart();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, PXX_PULSES_PERIOD);
       break;
 #endif
 
 #if defined(PXX1) && defined(HARDWARE_EXTERNAL_MODULE_SIZE_SML)
     case PROTOCOL_CHANNELS_PXX1_SERIAL:
       extmodulePxx1SerialStart();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, EXTMODULE_PXX1_SERIAL_PERIOD);
       break;
 #endif
 
@@ -176,79 +242,126 @@ void enablePulsesExternalModule(uint8_t protocol)
     case PROTOCOL_CHANNELS_DSM2_LP45:
     case PROTOCOL_CHANNELS_DSM2_DSM2:
     case PROTOCOL_CHANNELS_DSM2_DSMX:
+#if defined(PCBSKY9X)
       extmoduleSerialStart(DSM2_BAUDRATE, DSM2_PERIOD * 2000, false);
+#else
+      extmoduleSerialStart();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, DSM2_PERIOD);
+#endif
       break;
 #endif
 
 #if defined(CROSSFIRE)
     case PROTOCOL_CHANNELS_CROSSFIRE:
       EXTERNAL_MODULE_ON();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, CROSSFIRE_PERIOD);
+      break;
+#endif
+
+#if defined(GHOST)
+    case PROTOCOL_CHANNELS_GHOST:
+      EXTERNAL_MODULE_ON();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, GHOST_PERIOD);
       break;
 #endif
 
 #if defined(PXX2) && defined(EXTMODULE_USART)
     case PROTOCOL_CHANNELS_PXX2_HIGHSPEED:
       extmoduleInvertedSerialStart(PXX2_HIGHSPEED_BAUDRATE);
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, PXX2_PERIOD);
       break;
 
     case PROTOCOL_CHANNELS_PXX2_LOWSPEED:
       extmoduleInvertedSerialStart(PXX2_LOWSPEED_BAUDRATE);
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, PXX2_PERIOD);
       break;
 #endif
 
 #if defined(MULTIMODULE)
     case PROTOCOL_CHANNELS_MULTIMODULE:
+#if defined(PCBSKY9X)
       extmoduleSerialStart(MULTIMODULE_BAUDRATE, MULTIMODULE_PERIOD * 2000, true);
+#else
+      extmoduleSerialStart();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, MULTIMODULE_PERIOD);
+#endif
       break;
 #endif
 
 #if defined(SBUS)
     case PROTOCOL_CHANNELS_SBUS:
+#if defined(PCBSKY9X)
       extmoduleSerialStart(SBUS_BAUDRATE, SBUS_PERIOD_HALF_US, false);
+#else
+      extmoduleSerialStart();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, SBUS_PERIOD);
+#endif
       break;
 #endif
 
 #if defined(PPM)
     case PROTOCOL_CHANNELS_PPM:
       extmodulePpmStart();
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, PPM_PERIOD(EXTERNAL_MODULE));
+      break;
+#endif
+
+#if defined(AFHDS3)
+    case PROTOCOL_CHANNELS_AFHDS3:
+      extmodulePulsesData.afhds3.init(EXTERNAL_MODULE);
+      extmoduleSerialStart(/*AFHDS3_BAUDRATE, AFHDS3_COMMAND_TIMEOUT * 2000, false*/);
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, AFHDS3_COMMAND_TIMEOUT * 1000 /* us */);
       break;
 #endif
 
     default:
+      // external module stopped, set period to 50ms (necessary for USB Joystick, for instance)
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, 50000/*us*/);
       break;
   }
 }
 
-void setupPulsesExternalModule(uint8_t protocol)
+bool setupPulsesExternalModule(uint8_t protocol)
 {
   switch (protocol) {
 #if defined(PXX1)
     case PROTOCOL_CHANNELS_PXX1_PULSES:
       extmodulePulsesData.pxx.setupFrame(EXTERNAL_MODULE);
+#if defined(PCBSKY9X)
       scheduleNextMixerCalculation(EXTERNAL_MODULE, PXX_PULSES_PERIOD);
-      break;
+#endif
+      return true;
 #endif
 
 #if defined(PXX1) && defined(HARDWARE_EXTERNAL_MODULE_SIZE_SML)
     case PROTOCOL_CHANNELS_PXX1_SERIAL:
       extmodulePulsesData.pxx_uart.setupFrame(EXTERNAL_MODULE);
+#if defined(PCBSKY9X)
       scheduleNextMixerCalculation(EXTERNAL_MODULE, EXTMODULE_PXX1_SERIAL_PERIOD);
-      break;
+#endif
+      return true;
 #endif
 
 #if defined(PXX2)
     case PROTOCOL_CHANNELS_PXX2_HIGHSPEED:
     case PROTOCOL_CHANNELS_PXX2_LOWSPEED:
       extmodulePulsesData.pxx2.setupFrame(EXTERNAL_MODULE);
-      scheduleNextMixerCalculation(EXTERNAL_MODULE, PXX2_PERIOD);
-      break;
+#if defined(PCBSKY9X)
+      sheduleNextMixerCalculation(EXTERNAL_MODULE, PXX2_PERIOD);
+#endif
+      return true;
 #endif
 
 #if defined(SBUS)
     case PROTOCOL_CHANNELS_SBUS:
       setupPulsesSbus();
+#if defined(PCBSKY9X)
       scheduleNextMixerCalculation(EXTERNAL_MODULE, SBUS_PERIOD);
-      break;
+#else
+      // SBUS_PERIOD is not a constant! It can be set from UI
+      mixerSchedulerSetPeriod(EXTERNAL_MODULE, SBUS_PERIOD);
+      return true;
+#endif
 #endif
 
 #if defined(DSM2)
@@ -256,35 +369,83 @@ void setupPulsesExternalModule(uint8_t protocol)
     case PROTOCOL_CHANNELS_DSM2_DSM2:
     case PROTOCOL_CHANNELS_DSM2_DSMX:
       setupPulsesDSM2();
+#if defined(PCBSKY9X)
       scheduleNextMixerCalculation(EXTERNAL_MODULE, DSM2_PERIOD);
-      break;
+#endif
+      return true;
 #endif
 
 #if defined(CROSSFIRE)
     case PROTOCOL_CHANNELS_CROSSFIRE:
+    {
+      ModuleSyncStatus& status = getModuleSyncStatus(EXTERNAL_MODULE);
+      if (status.isValid())
+        mixerSchedulerSetPeriod(EXTERNAL_MODULE, status.getAdjustedRefreshRate());
+      else
+        mixerSchedulerSetPeriod(EXTERNAL_MODULE, CROSSFIRE_PERIOD);
       setupPulsesCrossfire();
+#if defined(PCBSKY9X)
       scheduleNextMixerCalculation(EXTERNAL_MODULE, CROSSFIRE_PERIOD);
-      break;
+#endif
+      return true;
+    }
+#endif
+
+#if defined(GHOST)
+    case PROTOCOL_CHANNELS_GHOST:
+    {
+      ModuleSyncStatus& status = getModuleSyncStatus(EXTERNAL_MODULE);
+      if (status.isValid())
+        mixerSchedulerSetPeriod(EXTERNAL_MODULE, status.getAdjustedRefreshRate());
+      else
+        mixerSchedulerSetPeriod(EXTERNAL_MODULE, GHOST_PERIOD);
+      setupPulsesGhost();
+#if defined(PCBSKPCBSKY9X)
+      scheduleNextMixerCalculation(EXTERNAL_MODULE, GHOST_PERIOD);
+#endif
+      return true;
+    }
 #endif
 
 #if defined(MULTIMODULE)
     case PROTOCOL_CHANNELS_MULTIMODULE:
+    {
+      ModuleSyncStatus& status = getModuleSyncStatus(EXTERNAL_MODULE);
+      if (status.isValid())
+        mixerSchedulerSetPeriod(EXTERNAL_MODULE, status.getAdjustedRefreshRate());
+      else
+        mixerSchedulerSetPeriod(EXTERNAL_MODULE, MULTIMODULE_PERIOD);
       setupPulsesMultiExternalModule();
+#if defined(PCBSKY9X)
       scheduleNextMixerCalculation(EXTERNAL_MODULE, MULTIMODULE_PERIOD);
-      break;
+#endif
+      return true;
+    }
 #endif
 
 #if defined(PPM)
     case PROTOCOL_CHANNELS_PPM:
       setupPulsesPPMExternalModule();
+#if defined(PCBSKY9X)
       scheduleNextMixerCalculation(EXTERNAL_MODULE, PPM_PERIOD(EXTERNAL_MODULE));
-      break;
+#endif
+      return true;
+#endif
+
+#if defined(AFHDS3)
+    case PROTOCOL_CHANNELS_AFHDS3:
+      extmodulePulsesData.afhds3.setupFrame();
+#if defined(PCBSKY9X)
+      scheduleNextMixerCalculation(EXTERNAL_MODULE, AFHDS3_COMMAND_TIMEOUT);
+#endif
+      return true;
 #endif
 
     default:
-      break;
+      return false;
   }
 }
+#endif
 
 #if defined(HARDWARE_INTERNAL_MODULE)
 static void enablePulsesInternalModule(uint8_t protocol)
@@ -295,20 +456,40 @@ static void enablePulsesInternalModule(uint8_t protocol)
 #if defined(PXX1) && !defined(INTMODULE_USART)
     case PROTOCOL_CHANNELS_PXX1_PULSES:
       intmodulePxx1PulsesStart();
+#if defined(INTMODULE_HEARTBEAT)
+      // use backup trigger (1 ms later)
+      init_intmodule_heartbeat();
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD + 1000/*us*/);
+#else
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD);
+#endif
       break;
 #endif
 
 #if defined(PXX1) && defined(INTMODULE_USART)
     case PROTOCOL_CHANNELS_PXX1_SERIAL:
       intmodulePxx1SerialStart();
+#if defined(INTMODULE_HEARTBEAT)
+      // use backup trigger (1 ms later)
+      init_intmodule_heartbeat();
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD + 1000/*us*/);
+#else
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD);
+#endif
       break;
 #endif
 
 #if defined(PXX2)
     case PROTOCOL_CHANNELS_PXX2_HIGHSPEED:
       intmoduleSerialStart(PXX2_HIGHSPEED_BAUDRATE, true, USART_Parity_No, USART_StopBits_1, USART_WordLength_8b);
-#if defined(HARDWARE_INTERNAL_MODULE) && defined(INTERNAL_MODULE_PXX2) && defined(ACCESS_LIB)
-      globalData.authenticationCount = 0;
+      resetAccessAuthenticationCount();
+
+#if defined(INTMODULE_HEARTBEAT)
+      // use backup trigger (1 ms later)
+      init_intmodule_heartbeat();
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, PXX2_PERIOD + 1000/*us*/);
+#else
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, PXX2_PERIOD);
 #endif
       break;
 #endif
@@ -317,10 +498,20 @@ static void enablePulsesInternalModule(uint8_t protocol)
     case PROTOCOL_CHANNELS_MULTIMODULE:
       intmodulePulsesData.multi.initFrame();
       intmoduleSerialStart(MULTIMODULE_BAUDRATE, true, USART_Parity_Even, USART_StopBits_2, USART_WordLength_9b);
-      intmoduleTimerStart(MULTIMODULE_PERIOD);
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, MULTIMODULE_PERIOD);
       break;
 #endif
+
+#if defined(INTERNAL_MODULE_PPM)
+    case PROTOCOL_CHANNELS_PPM:
+      intmodulePpmStart();
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, PPM_PERIOD(INTERNAL_MODULE));
+      break;
+#endif
+
     default:
+      // internal module stopped, set internal period to 0 and start the scheduler
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, 0);
       break;
   }
 }
@@ -331,16 +522,18 @@ bool setupPulsesInternalModule(uint8_t protocol)
 #if defined(HARDWARE_INTERNAL_MODULE) && defined(PXX1) && !defined(INTMODULE_USART)
     case PROTOCOL_CHANNELS_PXX1_PULSES:
       intmodulePulsesData.pxx.setupFrame(INTERNAL_MODULE);
-      scheduleNextMixerCalculation(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD);
+#if defined(INTMODULE_HEARTBEAT)
+      mixerSchedulerResetTimer();
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD + 1000 /* backup */);
+#else
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD);
+#endif
       return true;
 #endif
 
 #if defined(PXX1) && defined(INTMODULE_USART)
     case PROTOCOL_CHANNELS_PXX1_SERIAL:
       intmodulePulsesData.pxx_uart.setupFrame(INTERNAL_MODULE);
-#if !defined(INTMODULE_HEARTBEAT)
-      scheduleNextMixerCalculation(INTERNAL_MODULE, INTMODULE_PXX1_SERIAL_PERIOD);
-#endif
       return true;
 #endif
 
@@ -349,13 +542,16 @@ bool setupPulsesInternalModule(uint8_t protocol)
     {
       bool result = intmodulePulsesData.pxx2.setupFrame(INTERNAL_MODULE);
       if (moduleState[INTERNAL_MODULE].mode == MODULE_MODE_SPECTRUM_ANALYSER || moduleState[INTERNAL_MODULE].mode == MODULE_MODE_POWER_METER) {
-        scheduleNextMixerCalculation(INTERNAL_MODULE, PXX2_TOOLS_PERIOD);
+        mixerSchedulerSetPeriod(INTERNAL_MODULE, PXX2_TOOLS_PERIOD);
       }
-#if !defined(INTMODULE_HEARTBEAT)
       else {
-        scheduleNextMixerCalculation(INTERNAL_MODULE, PXX2_PERIOD);
-      }
+#if defined(INTMODULE_HEARTBEAT)
+        mixerSchedulerResetTimer();
+        mixerSchedulerSetPeriod(INTERNAL_MODULE, PXX2_PERIOD + 1000 /* backup */);
+#else
+        mixerSchedulerSetPeriod(INTERNAL_MODULE, PXX2_PERIOD);
 #endif
+      }
       return result;
     }
 #endif
@@ -363,19 +559,29 @@ bool setupPulsesInternalModule(uint8_t protocol)
 #if defined(PCBTARANIS) && defined(INTERNAL_MODULE_PPM)
     case PROTOCOL_CHANNELS_PPM:
       setupPulsesPPMInternalModule();
-      scheduleNextMixerCalculation(INTERNAL_MODULE, PPM_PERIOD(INTERNAL_MODULE));
+      // probably useless, as the interval did not change since "enable" function
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, PPM_PERIOD(INTERNAL_MODULE));
       return true;
 #endif
 
 #if defined(INTERNAL_MODULE_MULTI)
     case PROTOCOL_CHANNELS_MULTIMODULE:
       setupPulsesMultiInternalModule();
-      scheduleNextMixerCalculation(INTERNAL_MODULE, MULTIMODULE_PERIOD);
+      mixerSchedulerSetPeriod(INTERNAL_MODULE, MULTIMODULE_PERIOD);
       return true;
 #endif
 
     default:
-      return true;
+      //mixerSchedulerSetPeriod(INTERNAL_MODULE, 10000 /*us*/); // used for USB sim for example
+      return false;
+  }
+}
+
+void stopPulsesInternalModule()
+{
+  if (moduleState[INTERNAL_MODULE].protocol != PROTOCOL_CHANNELS_UNINITIALIZED) {
+    intmoduleStop();
+    moduleState[INTERNAL_MODULE].protocol = PROTOCOL_CHANNELS_NONE;
   }
 }
 
@@ -397,6 +603,15 @@ bool setupPulsesInternalModule()
 }
 #endif
 
+#if defined(HARDWARE_EXTERNAL_MODULE)
+void stopPulsesExternalModule()
+{
+  if (moduleState[EXTERNAL_MODULE].protocol != PROTOCOL_CHANNELS_UNINITIALIZED) {
+    extmoduleStop();
+    moduleState[EXTERNAL_MODULE].protocol = PROTOCOL_CHANNELS_NONE;
+  }
+}
+
 bool setupPulsesExternalModule()
 {
   uint8_t protocol = getRequiredProtocol(EXTERNAL_MODULE);
@@ -410,10 +625,10 @@ bool setupPulsesExternalModule()
     return false;
   }
   else {
-    setupPulsesExternalModule(protocol);
-    return true;
+    return setupPulsesExternalModule(protocol);
   }
 }
+#endif
 
 void setCustomFailsafe(uint8_t moduleIndex)
 {
@@ -428,3 +643,8 @@ void setCustomFailsafe(uint8_t moduleIndex)
     }
   }
 }
+
+int32_t getChannelValue(uint8_t channel) {
+  return channelOutputs[channel] + 2*PPM_CH_CENTER(channel) - 2*PPM_CENTER;
+}
+

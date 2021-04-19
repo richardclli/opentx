@@ -27,7 +27,8 @@
 
 #include "opentx.h"
 
-#define ROOT_PATH           "/"
+#define PATH_SEPARATOR      "/"
+#define ROOT_PATH           PATH_SEPARATOR
 #define MODELS_PATH         ROOT_PATH "MODELS24"      // no trailing slash = important //TODO Temporary while working on both 2.3 and 2.4
 #define RADIO_PATH          ROOT_PATH "RADIO24"       // no trailing slash = important
 #define LOGS_PATH           ROOT_PATH "LOGS"
@@ -37,27 +38,27 @@
 #define SYSTEM_SUBDIR       "SYSTEM"
 #define BITMAPS_PATH        ROOT_PATH "IMAGES"
 #define FIRMWARES_PATH      ROOT_PATH "FIRMWARE"
-#define AUTOUPDATE_FILENAME FIRMWARES_PATH "/autoupdate.frsk"
+#define AUTOUPDATE_FILENAME FIRMWARES_PATH PATH_SEPARATOR "autoupdate.frsk"
 #define EEPROMS_PATH        ROOT_PATH "EEPROM"
 #define SCRIPTS_PATH        ROOT_PATH "SCRIPTS"
-#define WIZARD_PATH         SCRIPTS_PATH "/WIZARD"
+#define WIZARD_PATH         SCRIPTS_PATH PATH_SEPARATOR "WIZARD"
 #define THEMES_PATH         ROOT_PATH "THEMES"
 #define LAYOUTS_PATH        ROOT_PATH "LAYOUTS"
 #define WIDGETS_PATH        ROOT_PATH "WIDGETS"
 #define WIZARD_NAME         "wizard.lua"
-#define SCRIPTS_MIXES_PATH  SCRIPTS_PATH "/MIXES"
-#define SCRIPTS_FUNCS_PATH  SCRIPTS_PATH "/FUNCTIONS"
-#define SCRIPTS_TELEM_PATH  SCRIPTS_PATH "/TELEMETRY"
-#define SCRIPTS_TOOLS_PATH  SCRIPTS_PATH "/TOOLS"
+#define SCRIPTS_MIXES_PATH  SCRIPTS_PATH PATH_SEPARATOR "MIXES"
+#define SCRIPTS_FUNCS_PATH  SCRIPTS_PATH PATH_SEPARATOR "FUNCTIONS"
+#define SCRIPTS_TELEM_PATH  SCRIPTS_PATH PATH_SEPARATOR "TELEMETRY"
+#define SCRIPTS_TOOLS_PATH  SCRIPTS_PATH PATH_SEPARATOR "TOOLS"
 
 #define LEN_FILE_PATH_MAX   (sizeof(SCRIPTS_TELEM_PATH)+1)  // longest + "/"
 
 #if defined(COLORLCD)
-const char RADIO_MODELSLIST_PATH[] = RADIO_PATH "/models.txt";
-const char RADIO_SETTINGS_PATH[] = RADIO_PATH "/radio.bin";
+const char RADIO_MODELSLIST_PATH[] = RADIO_PATH PATH_SEPARATOR "models.txt";
+const char RADIO_SETTINGS_PATH[] = RADIO_PATH PATH_SEPARATOR "radio.bin";
 #if defined(SDCARD_YAML)
-const char RADIO_MODELSLIST_YAML_PATH[] = RADIO_PATH "/models.yml";
-const char RADIO_SETTINGS_YAML_PATH[] = RADIO_PATH "/radio.yml";
+const char RADIO_MODELSLIST_YAML_PATH[] = RADIO_PATH PATH_SEPARATOR "models.yml";
+const char RADIO_SETTINGS_YAML_PATH[] = RADIO_PATH PATH_SEPARATOR "radio.yml";
 #endif
 #define    SPLASH_FILE             "splash.png"
 #endif
@@ -76,6 +77,7 @@ const char RADIO_SETTINGS_YAML_PATH[] = RADIO_PATH "/radio.yml";
 #define SPORT_FIRMWARE_EXT  ".frk"
 #define FRSKY_FIRMWARE_EXT  ".frsk"
 #define MULTI_FIRMWARE_EXT  ".bin"
+#define ELRS_FIRMWARE_EXT   ".elrs"
 #define YAML_EXT            ".yml"
 
 #if defined(COLORLCD)
@@ -130,6 +132,10 @@ const char * getBasename(const char * path);
   #define OTX_FOURCC 0x3478746F // otx for X12S
 #elif defined(RADIO_T16)
   #define OTX_FOURCC 0x3F78746F // otx for Jumper T16
+#elif defined(RADIO_T18)
+  #define OTX_FOURCC 0x4078746F // otx for Jumper T18
+#elif defined(RADIO_TX16S)
+  #define OTX_FOURCC 0x3878746F // otx for Radiomaster TX16S
 #elif defined(PCBX10)
   #define OTX_FOURCC 0x3778746F // otx for X10
 #elif defined(PCBX9E)
@@ -138,10 +144,18 @@ const char * getBasename(const char * path);
   #define OTX_FOURCC 0x3B78746F // otx for Taranis X-Lite S
 #elif defined(PCBXLITE)
   #define OTX_FOURCC 0x3978746F // otx for Taranis X-Lite
-#elif defined(RADIO_X7)
-  #define OTX_FOURCC 0x3678746F // otx for Taranis X7
+#elif defined(RADIO_T12)
+  #define OTX_FOURCC 0x3D78746F // otx for Jumper T12
+#elif defined(RADIO_TLITE)
+  #define OTX_FOURCC 0x4278746F // otx for Jumper TLite
+#elif defined(RADIO_TX12)
+  #define OTX_FOURCC 0x4178746F // otx for Radiomaster TX12
+#elif defined(RADIO_T8)
+  #define OTX_FOURCC 0x4378746F // otx for Radiomaster T8
+#elif defined(PCBX7)
+  #define OTX_FOURCC 0x3678746F // otx for Taranis X7 / X7S / X7 Express / X7S Express
 #elif defined(PCBX9LITES)
-  #define OTX_FOURCC 0x3E78746F // otx for Taranis X9-Lite
+  #define OTX_FOURCC 0x3E78746F // otx for Taranis X9-Lite S
 #elif defined(PCBX9LITE)
   #define OTX_FOURCC 0x3C78746F // otx for Taranis X9-Lite
 #elif defined(PCBX9D) || defined(PCBX9DP)
@@ -150,8 +164,6 @@ const char * getBasename(const char * path);
   #define OTX_FOURCC 0x3A78746F // otx for NV14
 #elif defined(PCBSKY9X)
   #define OTX_FOURCC 0x3278746F // otx for sky9x
-#elif defined(RADIO_T12)
-  #define OTX_FOURCC 0x3D78746F // otx for Jumper T12
 #endif
 
 bool isFileAvailable(const char * filename, bool exclDir = false);

@@ -23,29 +23,37 @@
 
 #include "form.h"
 
-class ViewMain: public FormWindow {
-  public:
-    explicit ViewMain(bool icons = true);
+class ViewMain: public FormWindow
+{
+    // singleton
+    explicit ViewMain();
 
+  public:
     ~ViewMain() override;
 
+    static ViewMain * instance()
+    {
+      if (!_instance)
+        _instance = new ViewMain();
+
+      return _instance;
+    }
+
 #if defined(DEBUG_WINDOWS)
-    virtual std::string getName()
+    std::string getName() const override
     {
       return "ViewMain";
     }
 #endif
 
-    static ViewMain * instance;
-
   protected:
+    static ViewMain * _instance;
+
 #if defined(HARDWARE_KEYS)
     void onEvent(event_t event) override;
 #endif
     void paint(BitmapBuffer * dc) override;
-    void checkEvents() override;
     void openMenu();
 };
 
 #endif // _VIEW_MAIN_H_
-

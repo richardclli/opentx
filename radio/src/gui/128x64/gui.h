@@ -36,10 +36,10 @@
   #define HEADER_LINE_COLUMNS          0,
 #endif
 
-#define COLUMN_X                       0
 #define drawFieldLabel(x, y, str)      lcdDrawTextAlignedLeft(y, str)
 
 #define NUM_BODY_LINES                 (LCD_LINES-1)
+#define TEXT_VIEWER_LINES              NUM_BODY_LINES
 #define MENU_HEADER_HEIGHT             FH
 
 #define CURVE_SIDE_WIDTH               (LCD_H/2)
@@ -213,7 +213,9 @@ extern uint8_t s_copyMode;
 extern int8_t s_copySrcRow;
 extern int8_t s_copyTgtOfs;
 extern uint8_t s_currIdx;
-extern uint8_t s_curveChan;
+extern uint8_t s_currIdxSubMenu;
+extern uint16_t s_currSrcRaw;
+extern uint16_t s_currScale;
 extern uint8_t s_copySrcIdx;
 extern uint8_t s_copySrcCh;
 extern int8_t s_currCh;
@@ -233,6 +235,9 @@ void pushMenuTextView(const char *filename);
 void pushModelNotes();
 void readModelNotes();
 
+void menuChannelsView(event_t event);
+void menuChannelsViewCommon(event_t event);
+
 #define CURSOR_MOVED_LEFT(event)       (IS_ROTARY_LEFT(event) || EVT_KEY_MASK(event) == KEY_LEFT)
 #define CURSOR_MOVED_RIGHT(event)      (IS_ROTARY_RIGHT(event) || EVT_KEY_MASK(event) == KEY_RIGHT)
 
@@ -243,7 +248,7 @@ void readModelNotes();
   #define IS_ROTARY_LONG(evt)          (evt == EVT_ROTARY_LONG)
   #define IS_ROTARY_EVENT(evt)         (EVT_KEY_MASK(evt) >= 0x0e)
   void repeatLastCursorMove(event_t event);
-  #define REPEAT_LAST_CURSOR_MOVE()    { if (EVT_KEY_MASK(event) >= 0x0e) putEvent(event); else repeatLastCursorMove(event); }
+  #define REPEAT_LAST_CURSOR_MOVE()    { if (EVT_KEY_MASK(event) >= 0x0e) pushEvent(event); else repeatLastCursorMove(event); }
 #else
   #define IS_ROTARY_LEFT(evt)          (0)
   #define IS_ROTARY_RIGHT(evt)         (0)
@@ -270,9 +275,6 @@ uint8_t getMixesCount();
 void insertMix(uint8_t idx);
 void deleteMix(uint8_t idx);
 
-typedef int (*FnFuncP) (int x);
-void drawFunction(FnFuncP fn, uint8_t offset=0);
-
 void onSourceLongEnterPress(const char *result);
 
 uint8_t switchToMix(uint8_t source);
@@ -292,6 +294,7 @@ void drawProgressScreen(const char * title, const char * message, int num, int d
 void drawSleepBitmap();
 
 void drawVerticalScrollbar(coord_t x, coord_t y, coord_t h, uint16_t offset, uint16_t count, uint8_t visible);
+void drawGauge(coord_t x, coord_t y, coord_t w, coord_t h, int32_t val, int32_t max);
 
 void drawAlertBox(const char * title, const char * text, const char * action);
 void showAlertBox(const char * title, const char * text, const char * action , uint8_t sound);
@@ -300,8 +303,8 @@ void showAlertBox(const char * title, const char * text, const char * action , u
 #define LOAD_MODEL_BITMAP()
 
 #define IS_MAIN_VIEW_DISPLAYED()       menuHandlers[0] == menuMainView
-#define IS_TELEMETRY_VIEW_DISPLAYED()  menuHandlers[0] == menuViewTelemetryFrsky
-#define IS_OTHER_VIEW_DISPLAYED()      false
+#define IS_TELEMETRY_VIEW_DISPLAYED()  menuHandlers[0] == menuViewTelemetry
+#define IS_OTHER_VIEW_DISPLAYED()      menuHandlers[0] == menuChannelsView
 
 void editCurveRef(coord_t x, coord_t y, CurveRef & curve, event_t event, LcdFlags flags);
 

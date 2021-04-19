@@ -19,69 +19,71 @@
  */
 
 #include "opentx.h"
+#include <memory>
 
 class ModelBitmapWidget: public Widget
 {
   public:
-    ModelBitmapWidget(const WidgetFactory * factory, const Zone & zone, Widget::PersistentData * persistentData):
-      Widget(factory, zone, persistentData),
-      buffer(NULL),
-      deps_hash(0)
+    ModelBitmapWidget(const WidgetFactory * factory, FormGroup * parent, const rect_t & rect, Widget::PersistentData * persistentData):
+      Widget(factory, parent, rect, persistentData)
     {
     }
 
-    virtual ~ModelBitmapWidget()
+    void paint(BitmapBuffer * dc) override
     {
-      delete buffer;
-    }
+      // big space to draw
+      if (rect.h >= 96 && rect.w >= 120) {
 
-    void refreshBuffer()
-    {
-      delete buffer;
-      buffer = new BitmapBuffer(BMP_RGB565, zone.w, zone.h);
+        dc->drawFilledRect(0, 0, rect.w, rect.h, SOLID, MAINVIEW_PANES_COLOR | OPACITY(5));
+      
+        auto iconMask = theme->getIconMask(ICON_MODEL);
+        if (iconMask) {
+          dc->drawMask(6, 4, iconMask, MAINVIEW_GRAPHICS_COLOR);
+        }
 
-      if (buffer) {
-        buffer->drawBitmap(0, 0, lcd, zone.x, zone.y, zone.w, zone.h);
-        GET_FILENAME(filename, BITMAPS_PATH, g_model.header.bitmap, "");
-        BitmapBuffer * bitmap = BitmapBuffer::load(filename);
-        if (zone.h >= 96 && zone.w >= 120) {
-          buffer->drawFilledRect(0, 0, zone.w, zone.h, SOLID, MAINVIEW_PANES_COLOR | OPACITY(5));
-          static BitmapBuffer * icon = BitmapBuffer::loadMask(getThemePath("mask_menu_model.png"));
-          buffer->drawMask(6, 4, icon, MAINVIEW_GRAPHICS_COLOR);
-          buffer->drawSizedText(45, 10, g_model.header.name, LEN_MODEL_NAME, ZCHAR | FONT(XS));
-          buffer->drawSolidFilledRect(39, 27, zone.w - 48, 2, MAINVIEW_GRAPHICS_COLOR);
-          if (bitmap) {
-            buffer->drawScaledBitmap(bitmap, 0, 38, zone.w, zone.h - 38);
-          }
+        dc->drawSizedText(45, 10, g_model.header.name, LEN_MODEL_NAME, FONT(XS));
+        dc->drawSolidFilledRect(39, 27, rect.w - 48, 2, MAINVIEW_GRAPHICS_COLOR);
+
+        if (buffer) {
+          dc->drawScaledBitmap(buffer.get(), 0, 38, rect.w, rect.h - 38);
         }
-        else {
-          if (bitmap) {
-            buffer->drawScaledBitmap(bitmap, 0, 0, zone.w, zone.h);
-          }
-        }
-        delete bitmap;
+      }
+      // smaller space to draw
+      else if (buffer) {
+        dc->drawScaledBitmap(buffer.get(), 0, 0, rect.w, rect.h);
       }
     }
 
-    virtual void refresh()
+    void checkEvents() override
     {
+      Widget::checkEvents();
+      
       uint32_t new_hash = hash(g_model.header.bitmap, sizeof(g_model.header.bitmap));
       new_hash ^= hash(g_model.header.name, sizeof(g_model.header.name));
       new_hash ^= hash(g_eeGeneral.themeName, sizeof(g_eeGeneral.themeName));
+
       if (new_hash != deps_hash) {
         deps_hash = new_hash;
-        refreshBuffer();
-      }
-
-      if (buffer) {
-        lcd->drawBitmap(zone.x, zone.y, buffer);
+        loadBitmap();
       }
     }
 
   protected:
-    BitmapBuffer * buffer;
-    uint32_t deps_hash;
+    std::unique_ptr<BitmapBuffer> buffer;
+    uint32_t deps_hash = 0;
+
+    void loadBitmap()
+    {
+      std::string filename = std::string(g_model.header.bitmap);
+      std::string fullpath = std::string(BITMAPS_PATH PATH_SEPARATOR) + filename;
+
+      buffer.reset(BitmapBuffer::loadBitmap(fullpath.c_str()));
+      if (!buffer) {
+        TRACE("could not load bitmap '%s'", filename.c_str());
+        return;
+      }
+    }
 };
 
-BaseWidgetFactory<ModelBitmapWidget> modelBitmapWidget("ModelBmp", NULL);
+BaseWidgetFactory<ModelBitmapWidget> modelBitmapWidget("ModelBmp", nullptr);
 const WidgetFactory * defaultWidget = &modelBitmapWidget;

@@ -31,15 +31,12 @@
 void drawCurve(coord_t offset)
 {
   drawFunction(applyCurrentCurve, offset);
-  
-  uint8_t i = 0;
-  do {
+
+  CurveHeader & crv = g_model.curves[s_currIdxSubMenu];
+  for (uint8_t i = 0; i < crv.points + 5; i++) {
     point_t point = getPoint(i);
-    i++;
-    if (point.x == 0)
-      break;
-    lcdDrawFilledRect(point.x - offset, point.y - 1, 3, 3, SOLID, FORCE); // do markup square
-  } while (true);
+    lcdDrawFilledRect(point.x - 1 - offset, point.y - 1, 3, 3, SOLID, FORCE); // do markup square
+  }
 }
 
 void menuModelCurvesAll(event_t event)
@@ -61,7 +58,8 @@ void menuModelCurvesAll(event_t event)
 #endif
     case EVT_KEY_FIRST(KEY_ENTER):
       if (CURVE_SELECTED() && !READ_ONLY()) {
-        s_curveChan = sub;
+        s_currIdxSubMenu = sub;
+        s_currSrcRaw = MIXSRC_NONE;
         pushMenu(menuModelCurveOne);
       }
       break;
@@ -94,7 +92,7 @@ void menuModelCurvesAll(event_t event)
   }
 
   if (CURVE_SELECTED()) {
-    s_curveChan = sub;
+    s_currIdxSubMenu = sub;
 #if LCD_W >= 212
     drawCurve(23);
 #else
@@ -141,9 +139,9 @@ void editCurveRef(coord_t x, coord_t y, CurveRef & curve, event_t event, LcdFlag
       break;
     case CURVE_REF_CUSTOM:
       drawCurveName(x, y, curve.value, flags);
-      if (active && menuHorizontalPosition==1) {
-        if (event==EVT_KEY_LONG(KEY_ENTER) && curve.value!=0) {
-          s_curveChan = (curve.value<0 ? -curve.value-1 : curve.value-1);
+      if (active && menuHorizontalPosition == 1) {
+        if (event == EVT_KEY_LONG(KEY_ENTER) && curve.value != 0) {
+          s_currIdxSubMenu = abs(curve.value) - 1;
           pushMenu(menuModelCurveOne);
         }
         else {
@@ -152,4 +150,49 @@ void editCurveRef(coord_t x, coord_t y, CurveRef & curve, event_t event, LcdFlag
       }
       break;
   }
+}
+
+void drawFunction(FnFuncP fn, uint8_t offset)
+{
+  lcdDrawVerticalLine(CURVE_CENTER_X - offset, CURVE_CENTER_Y-CURVE_SIDE_WIDTH, CURVE_SIDE_WIDTH * 2, 0xee);
+  lcdDrawHorizontalLine(CURVE_CENTER_X - CURVE_SIDE_WIDTH - offset, CURVE_CENTER_Y, CURVE_SIDE_WIDTH * 2, 0xee);
+
+  coord_t prev_yv = (coord_t) - 1;
+
+  for (int xv = -CURVE_SIDE_WIDTH; xv <= CURVE_SIDE_WIDTH; xv++) {
+    coord_t yv = (LCD_H - 1) - (((uint16_t)RESX + fn(xv * (RESX/CURVE_SIDE_WIDTH))) / 2 * (LCD_H - 1) / RESX);
+    if (prev_yv != (coord_t) - 1) {
+      if (abs((int8_t)yv-prev_yv) <= 1) {
+        lcdDrawPoint(CURVE_CENTER_X + xv - offset - 1, prev_yv, FORCE);
+      }
+      else {
+        uint8_t tmp = (prev_yv < yv ? 0 : 1);
+        lcdDrawSolidVerticalLine(CURVE_CENTER_X + xv - offset - 1, yv + tmp, prev_yv - yv);
+      }
+    }
+    prev_yv = yv;
+  }
+}
+
+void drawCursor(FnFuncP fn, uint8_t offset)
+{
+  int x512 = getValue(s_currSrcRaw);
+  if (s_currSrcRaw >= MIXSRC_FIRST_TELEM) {
+    if (s_currScale > 0)
+      x512 = (x512 * 1024) / convertTelemValue(s_currSrcRaw - MIXSRC_FIRST_TELEM + 1, s_currScale);
+    drawSensorCustomValue(LCD_W - FW - offset, 6 * FH, (s_currSrcRaw - MIXSRC_FIRST_TELEM) / 3, x512, 0);
+  }
+  else {
+    lcdDrawNumber(LCD_W - FW - offset, 6*FH, calcRESXto1000(x512), RIGHT | PREC1);
+  }
+  x512 = limit(-1024, x512, 1024);
+  int y512 = fn(x512);
+  y512 = limit(-1024, y512, 1024);
+  lcdDrawNumber(CURVE_CENTER_X - FWNUM - offset, 1*FH, calcRESXto1000(y512), RIGHT | PREC1);
+
+  x512 = CURVE_CENTER_X + x512/(RESX / CURVE_SIDE_WIDTH);
+  y512 = (LCD_H - 1) - ((y512 + RESX) / 2) * (LCD_H - 1) / RESX;
+  
+  lcdDrawSolidVerticalLine(x512 - offset, y512-3, 3 * 2 + 1);
+  lcdDrawSolidHorizontalLine(x512 - 3 - offset, y512, 3 * 2 + 1);
 }

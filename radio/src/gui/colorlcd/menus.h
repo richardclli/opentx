@@ -251,7 +251,7 @@ bool menuAboutView(event_t event);
 bool menuMainViewChannelsMonitor(event_t event);
 bool menuTextView(event_t event);
 bool menuScreensTheme(event_t event);
-bool menuRadioSpectrumAnalyser(event_t event);
+bool menuRadioGhostModuleConfig(event_t event);
 bool menuRadioPowerMeter(event_t event);
 
 extern int8_t checkIncDec_Ret;  // global helper vars
@@ -278,7 +278,7 @@ extern int8_t s_editMode;       // global editmode
 //#define NAVIGATION_LINE_BY_LINE        0x40
 //#define CURSOR_ON_LINE()               (menuHorizontalPosition<0)
 
-extern uint8_t s_curveChan;
+extern uint8_t s_currIdxSubMenu;
 
 extern const char * warningText;
 extern const char * warningInfoText;
@@ -322,11 +322,7 @@ extern void (* popupFunc)(event_t event);
 extern uint8_t warningInfoFlags;
 
 #define DISPLAY_WARNING(evt)                (*popupFunc)(evt)
-#define POPUP_WARNING(s)               (warningType = WARNING_TYPE_ASTERISK, warningText = s, warningInfoText = 0, popupFunc = runPopupWarning)
 #define POPUP_INPUT(s, func)           (warningText = s, popupFunc = func)
-#define SET_WARNING_INFO(info, len, flags)    (warningInfoText = info, warningInfoLength = len, warningInfoFlags = flags)
-
-#define POPUP_MENU_START(func)         do { popupMenuHandler = (func); AUDIO_KEY_PRESS(); } while(0)
 #define POPUP_MENU_MAX_LINES           12
 #define MENU_MAX_DISPLAY_LINES         9
 #define MENU_LINE_LENGTH               (LEN_MODEL_NAME+12)

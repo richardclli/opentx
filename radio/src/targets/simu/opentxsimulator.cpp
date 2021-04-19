@@ -126,9 +126,9 @@ void OpenTxSimulator::start(const char * filename, bool tests)
 
   QMutexLocker lckr(&m_mtxSimuMain);
   QMutexLocker slckr(&m_mtxSettings);
-  StartEepromThread(filename);
-  StartAudioThread(volumeGain);
-  StartSimu(tests, simuSdDirectory.toLatin1().constData(), simuSettingsDirectory.toLatin1().constData());
+  startEepromThread(filename);
+  startAudioThread(volumeGain);
+  simuStart(tests, simuSdDirectory.toLatin1().constData(), simuSettingsDirectory.toLatin1().constData());
 
   emit started();
   QTimer::singleShot(0, this, SLOT(run()));  // old style for Qt < 5.4
@@ -143,9 +143,9 @@ void OpenTxSimulator::stop()
   setStopRequested(true);
 
   QMutexLocker lckr(&m_mtxSimuMain);
-  StopSimu();
-  StopAudioThread();
-  StopEepromThread();
+  simuStop();
+  stopAudioThread();
+  stopEepromThread();
 
   emit stopped();
 }
@@ -213,17 +213,7 @@ void OpenTxSimulator::setTrim(unsigned int idx, int value)
   if (i < 4)  // swap axes
     i = modn12x3[4 * getStickMode() + idx];
   uint8_t phase = getTrimFlightMode(getFlightMode(), i);
-
-  if (!setTrimValue(phase, i, value)) {
-    QTimer *timer = new QTimer(this);
-    timer->setSingleShot(true);
-    connect(timer, &QTimer::timeout, [=]() {
-      emit trimValueChange(idx, 0);
-      emit outputValueChange(OUTPUT_SRC_TRIM_VALUE, idx, 0);
-      timer->deleteLater();
-    });
-    timer->start(350);
-  }
+  setTrimValue(phase, i, value);
 }
 
 void OpenTxSimulator::setTrainerInput(unsigned int inputNumber, int16_t value)
@@ -326,7 +316,7 @@ uint8_t OpenTxSimulator::getSensorInstance(uint16_t id, uint8_t defaultValue)
     if (isTelemetryFieldAvailable(i)) {
       TelemetrySensor * sensor = &g_model.telemetrySensors[i];
       if (sensor->id == id) {
-        return sensor->instance;
+        return sensor->frskyInstance.physID + 1;
       }
     }
   }
@@ -605,16 +595,16 @@ class OpenTxSimulatorFactory: public SimulatorFactory
       return Board::BOARD_HORUS_X12S;
 #elif defined(PCBX10)
       return Board::BOARD_X10;
+#elif defined(PCBX7ACCESS)
+      return Board::BOARD_TARANIS_X7_ACCESS;
 #elif defined(PCBX7)
       return Board::BOARD_TARANIS_X7;
 #elif defined(PCBX9LITES)
       return Board::BOARD_TARANIS_X9LITES;
 #elif defined(PCBX9LITE)
       return Board::BOARD_TARANIS_X9LITE;
-#elif defined(PCBTARANIS)
-      return Board::BOARD_TARANIS_X9D;
 #else
-      return Board::BOARD_9X_M64;
+      return Board::BOARD_TARANIS_X9D;
 #endif
     }
 };

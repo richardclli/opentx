@@ -47,7 +47,15 @@ void HardwarePanel::setupSwitchType(int index, QLabel * label, AutoLineEdit * na
         label->setText("SJ");
       }
     }
-    if (IS_JUMPER_T12(board)) {
+    else if (IS_RADIOMASTER_TX12(board)) {
+      if (index == 6) {
+        label->setText("SI");
+      }
+      else if (index == 7) {
+        label->setText("SJ");
+      }
+    }
+    else if (IS_FAMILY_T12(board)) {
       if (index == 4) {
         label->setText("SG");
       }
@@ -101,6 +109,15 @@ void HardwarePanel::setupSliderType(int index, QLabel *label, AutoLineEdit *name
   }
 }
 
+bool HardwarePanel::isSwitch3Pos(int idx)
+{
+  Board::Type board = firmware->getBoard();
+  Board::SwitchInfo switchInfo = Boards::getSwitchInfo(board, idx);
+
+  switchInfo.config = Board::SwitchType(generalSettings.switchConfig[idx]);
+  return switchInfo.config == Board::SWITCH_3POS;
+};
+
 HardwarePanel::HardwarePanel(QWidget * parent, GeneralSettings & generalSettings, Firmware * firmware):
   GeneralPanel(parent, generalSettings, firmware),
   ui(new Ui::Hardware)
@@ -127,6 +144,14 @@ HardwarePanel::HardwarePanel(QWidget * parent, GeneralSettings & generalSettings
     ui->potsTypeSeparator_1->hide();
     ui->potsTypeSeparator_2->hide();
   }
+  
+  if (firmware->getCapability(HasSportConnector)) {
+    ui->sportPower->setChecked(generalSettings.sportPower);
+  }
+  else {
+    ui->sportPower->hide();
+    ui->sportPowerLabel->hide();
+  }
 
   setupPotType(0, ui->pot1Label, ui->pot1Name, ui->pot1Type);
   setupPotType(1, ui->pot2Label, ui->pot2Name, ui->pot2Type);
@@ -139,17 +164,17 @@ HardwarePanel::HardwarePanel(QWidget * parent, GeneralSettings & generalSettings
   setupSliderType(2, ui->ls2Label, ui->ls2Name, ui->ls2Type);
   setupSliderType(3, ui->rs2Label, ui->rs2Name, ui->rs2Type);
 
-  setupSwitchType(0, ui->saLabel, ui->saName, ui->saType);
-  setupSwitchType(1, ui->sbLabel, ui->sbName, ui->sbType);
-  setupSwitchType(2, ui->scLabel, ui->scName, ui->scType);
-  setupSwitchType(3, ui->sdLabel, ui->sdName, ui->sdType);
-  setupSwitchType(4, ui->seLabel, ui->seName, ui->seType);
-  setupSwitchType(5, ui->sfLabel, ui->sfName, ui->sfType, false);   //switch does not support 3POS
-  setupSwitchType(6, ui->sgLabel, ui->sgName, ui->sgType);
-  setupSwitchType(7, ui->shLabel, ui->shName, ui->shType, false);   //switch does not support 3POS
-  setupSwitchType(8, ui->siLabel, ui->siName, ui->siType);
-  setupSwitchType(9, ui->sjLabel, ui->sjName, ui->sjType);
-  setupSwitchType(10, ui->skLabel, ui->skName, ui->skType);
+  setupSwitchType(0, ui->saLabel, ui->saName, ui->saType, isSwitch3Pos(0));
+  setupSwitchType(1, ui->sbLabel, ui->sbName, ui->sbType, isSwitch3Pos(1));
+  setupSwitchType(2, ui->scLabel, ui->scName, ui->scType, isSwitch3Pos(2));
+  setupSwitchType(3, ui->sdLabel, ui->sdName, ui->sdType, isSwitch3Pos(3));
+  setupSwitchType(4, ui->seLabel, ui->seName, ui->seType, isSwitch3Pos(4));
+  setupSwitchType(5, ui->sfLabel, ui->sfName, ui->sfType, isSwitch3Pos(5));
+  setupSwitchType(6, ui->sgLabel, ui->sgName, ui->sgType, isSwitch3Pos(6));
+  setupSwitchType(7, ui->shLabel, ui->shName, ui->shType, isSwitch3Pos(7));
+  setupSwitchType(8, ui->siLabel, ui->siName, ui->siType, isSwitch3Pos(8));
+  setupSwitchType(9, ui->sjLabel, ui->sjName, ui->sjType, isSwitch3Pos(9));
+  setupSwitchType(10, ui->skLabel, ui->skName, ui->skType); // Here starts X9E, only 3 switches
   setupSwitchType(11, ui->slLabel, ui->slName, ui->slType);
   setupSwitchType(12, ui->smLabel, ui->smName, ui->smType);
   setupSwitchType(13, ui->snLabel, ui->snName, ui->snType);
@@ -172,7 +197,7 @@ HardwarePanel::HardwarePanel(QWidget * parent, GeneralSettings & generalSettings
     ui->txCurrentCalibrationLabel->hide();
   }
 
-  if (IS_TARANIS_X7(board) || IS_TARANIS_XLITE(board)|| IS_TARANIS_X9E(board) || IS_HORUS(board)) {
+  if (IS_TARANIS_X7(board) || IS_TARANIS_XLITE(board)|| IS_TARANIS_X9E(board) || IS_TARANIS_X9DP_2019(board) || IS_FAMILY_HORUS_OR_T16(board)) {
     ui->bluetoothMode->addItem(tr("OFF"), 0);
     if (IS_TARANIS_X9E(board)) {
       ui->bluetoothMode->addItem(tr("Enabled"), 1);
@@ -189,7 +214,7 @@ HardwarePanel::HardwarePanel(QWidget * parent, GeneralSettings & generalSettings
     ui->bluetoothWidget->hide();
   }
 
-  if ((IS_HORUS(board) && board != Board::BOARD_X10_EXPRESS) || (IS_TARANIS_XLITE(board) && !IS_TARANIS_XLITES(board))) {
+  if ((IS_FAMILY_HORUS_OR_T16(board) && board != Board::BOARD_X10_EXPRESS) || (IS_TARANIS_XLITE(board) && !IS_TARANIS_XLITES(board))) {
     ui->antennaMode->addItem(tr("Internal"), -2);
     ui->antennaMode->addItem(tr("Ask"), -1);
     ui->antennaMode->addItem(tr("Per model"), 0);
@@ -230,6 +255,11 @@ HardwarePanel::~HardwarePanel()
 void HardwarePanel::on_filterEnable_stateChanged()
 {
   generalSettings.jitterFilter = !ui->filterEnable->isChecked();
+}
+
+void HardwarePanel::on_sportPower_stateChanged()
+{
+  generalSettings.sportPower = ui->sportPower->isChecked();
 }
 
 void HardwarePanel::on_rtcCheckDisable_stateChanged()

@@ -1,6 +1,3 @@
-set(FONT "STD" CACHE STRING "Choose font : STD or SQT5")
-set_property(CACHE FONT PROPERTY STRINGS SQT5)
-
 add_definitions(-DGRAPHICS)
 
 set(GUI_SRC
@@ -19,6 +16,7 @@ set(GUI_SRC
   ../common/stdlcd/radio_hardware.cpp
   ../common/stdlcd/radio_version.cpp
   ../common/stdlcd/radio_trainer.cpp
+  ../common/stdlcd/view_telemetry.cpp
   model_curve_edit.cpp
   )
 
@@ -44,10 +42,16 @@ if(PXX2)
     )
 endif()
 
+if(GHOST)
+  set(GUI_SRC
+    ${GUI_SRC}
+    ../common/stdlcd/radio_ghost_menu.cpp
+    )
+endif()
+
 if(PXX2 OR MULTIMODULE)
   set(GUI_SRC
     ${GUI_SRC}
     ../common/stdlcd/radio_spectrum_analyser.cpp
     )
 endif()
-

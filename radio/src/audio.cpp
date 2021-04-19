@@ -158,10 +158,10 @@ const char * const unitsFilenames[] = {
   "ml",
   "founce",
   "mlpm",
-  "spare1",
-  "spare2",
-  "spare3",
-  "spare4",
+  "hertz",
+  "ms",
+  "us",
+  "km",
   "spare5",
   "spare6",
   "spare7",
@@ -524,16 +524,11 @@ void audioTask(void * pdata)
 
   setSampleRate(AUDIO_SAMPLE_RATE);
 
-#if defined(PCBX12S) || defined(PCBNV14)
-  // The audio amp needs ~2s to start
-  RTOS_WAIT_MS(1000); // 1s
-#endif
-
   if (!globalData.unexpectedShutdown) {
     AUDIO_HELLO();
   }
 
-  while (1) {
+  while (true) {
     DEBUG_TIMER_SAMPLE(debugTimerAudioIterval);
     DEBUG_TIMER_START(debugTimerAudioDuration);
     audioQueue.wakeup();

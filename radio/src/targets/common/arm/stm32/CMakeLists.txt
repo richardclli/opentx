@@ -16,8 +16,6 @@ include_directories(${STM32USB_DIR}/STM32_USB_Device_Library/Core/inc)
 include_directories(${STM32USB_DIR}/STM32_USB_Device_Library/Class/msc/inc)
 include_directories(${STM32USB_DIR}/STM32_USB_Device_Library/Class/hid/inc)
 include_directories(${STM32USB_DIR}/STM32_USB_Device_Library/Class/cdc/inc)
-include_directories(${STM32USB_DIR}/STM32_USB_Device_Library/Core/inc/)
-include_directories(${STM32USB_DIR}/STM32_USB_OTG_Driver/inc)
 
 set(STM32USB_SRC
   STM32_USB_OTG_Driver/src/usb_core.c
@@ -32,7 +30,7 @@ set(FIRMWARE_TARGET_SRC
   ${FIRMWARE_TARGET_SRC}
   ../common/arm/stm32/rtc_driver.cpp
   ${AUX_SERIAL_DRIVER}
-  ../common/arm/stm32/delays.cpp
+  ../common/arm/stm32/delays_driver.cpp
   ../common/arm/stm32/usb_bsp.c
   ../common/arm/stm32/usbd_desc.c
   ../common/arm/stm32/usbd_usr.cpp

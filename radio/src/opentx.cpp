@@ -23,8 +23,12 @@
 
 #if defined(LIBOPENUI)
 // #include "shutdown_animation.h"
-// #include "radio_calibration.h"
+#include "radio_calibration.h"
 #include "view_main.h"
+#endif
+
+#if defined(PCBSKY9X)
+#include "audio_driver.h"
 #endif
 
 RadioData  g_eeGeneral;
@@ -176,7 +180,7 @@ void per10ms()
       bool new_cw = (scrollRE < 0) ? false : true;
       if ((g_tmr10ms - lastEvent >= 10) || (cw == new_cw)) { // 100ms
 
-        putEvent(new_cw ? EVT_ROTARY_RIGHT : EVT_ROTARY_LEFT);
+        pushEvent(new_cw ? EVT_ROTARY_RIGHT : EVT_ROTARY_LEFT);
 
         // rotary encoder navigation speed (acceleration) detection/calculation
         static uint32_t delay = 2*ROTENC_DELAY_MIDSPEED;
@@ -263,7 +267,7 @@ void memswap(void * a, void * b, uint8_t size)
 void setDefaultOwnerId()
 {
   for (uint8_t i = 0; i < PXX2_LEN_REGISTRATION_ID; i++) {
-    g_eeGeneral.ownerRegistrationID[i] = (cpu_uid[1 + i] & 0x3f) - 26;
+     g_eeGeneral.ownerRegistrationID[i] = (((uint8_t *)cpu_uid)[4 + i] & 0x3fu);
   }
 }
 #endif
@@ -276,7 +280,9 @@ void generalDefault()
 
 #if defined(PCBHORUS)
   g_eeGeneral.blOffBright = 20;
-#else
+#endif
+
+#if defined(LCD_CONTRAST_DEFAULT)
   g_eeGeneral.contrast = LCD_CONTRAST_DEFAULT;
 #endif
 
@@ -303,9 +309,7 @@ void generalDefault()
   g_eeGeneral.stickMode = DEFAULT_MODE - 1;
 #endif
 
-#if defined(FRSKY_RELEASE)
-  g_eeGeneral.templateSetup = 17; /* TAER */
-#endif
+  g_eeGeneral.templateSetup = DEFAULT_TEMPLATE_SETUP;
 
   g_eeGeneral.backlightMode = e_backlight_mode_all;
   g_eeGeneral.lightAutoOff = 2;
@@ -332,12 +336,20 @@ void generalDefault()
 #endif
 
 #if defined(COLORLCD)
-  strcpy(g_eeGeneral.themeName, static_cast<ThemeBase *>(theme)->getName());
-  static_cast<ThemeBase *>(theme)->init();
+  strcpy(g_eeGeneral.themeName, static_cast<OpenTxTheme *>(theme)->getName());
+  static_cast<OpenTxTheme *>(theme)->init();
 #endif
 
 #if defined(PXX2)
   setDefaultOwnerId();
+#endif
+
+#if defined(RADIOMASTER_RTF_RELEASE)
+  // Those settings are for headless radio
+  g_eeGeneral.USBMode = USB_JOYSTICK_MODE;
+  g_eeGeneral.disableRtcWarning = 1;
+  g_eeGeneral.splashMode = 3; // Disable splash
+  g_eeGeneral.pwrOnSpeed = 1; // 1 second
 #endif
 
   g_eeGeneral.chkSum = 0xFFFF;
@@ -352,196 +364,6 @@ uint16_t evalChkSum()
   return sum;
 }
 
-void clearInputs()
-{
-  memset(g_model.expoData, 0, sizeof(g_model.expoData)); // clear all expos
-}
-
-void defaultInputs()
-{
-  clearInputs();
-
-  for (int i=0; i<NUM_STICKS; i++) {
-    uint8_t stick_index = channelOrder(i+1);
-    ExpoData *expo = expoAddress(i);
-    expo->srcRaw = MIXSRC_Rud - 1 + stick_index;
-    expo->curve.type = CURVE_REF_EXPO;
-    expo->chn = i;
-    expo->weight = 100;
-    expo->mode = 3; // TODO constant
-#if defined(TRANSLATIONS_CZ)
-    for (int c = 0; c < 4; c++) {
-      g_model.inputNames[i][c] = STR_INPUTNAMES[1+4*(stick_index-1)+c];
-    }
-#else
-    for (int c = 0; c < 3; c++) {
-      g_model.inputNames[i][c] = STR_VSRCRAW[2 + 4 * stick_index + c];
-    }
-#if LEN_INPUT_NAME > 3
-    g_model.inputNames[i][3] = '\0';
-#endif
-#endif
-  }
-  storageDirty(EE_MODEL);
-}
-
-void applyDefaultTemplate()
-{
-  defaultInputs(); // calls storageDirty internally
-
-  for (int i=0; i<NUM_STICKS; i++) {
-    MixData * mix = mixAddress(i);
-    mix->destCh = i;
-    mix->weight = 100;
-    mix->srcRaw = i+1;
-  }
-}
-
-#if defined(EEPROM)
-void checkModelIdUnique(uint8_t index, uint8_t module)
-{
-  if (isModuleXJTD8(module))
-    return;
-
-  uint8_t modelId = g_model.header.modelId[module];
-  uint8_t additionalOnes = 0;
-  char * name = reusableBuffer.moduleSetup.msg;
-
-  memset(reusableBuffer.moduleSetup.msg, 0, sizeof(reusableBuffer.moduleSetup.msg));
-
-  if (modelId != 0) {
-    for (uint8_t i = 0; i < MAX_MODELS; i++) {
-      if (i != index) {
-        if (modelId == modelHeaders[i].modelId[module]) {
-          if ((WARNING_LINE_LEN - 4 - (name - reusableBuffer.moduleSetup.msg)) > (signed)(modelHeaders[i].name[0] ? zlen(modelHeaders[i].name, LEN_MODEL_NAME) : sizeof(TR_MODEL) + 2)) { // you cannot rely exactly on WARNING_LINE_LEN so using WARNING_LINE_LEN-2 (-2 for the ",")
-            if (reusableBuffer.moduleSetup.msg[0] != '\0') {
-              name = strAppend(name, ", ");
-            }
-            if (modelHeaders[i].name[0] == 0) {
-              name = strAppend(name, STR_MODEL);
-              name = strAppendUnsigned(name+strlen(name), i + 1, 2);
-            }
-            else {
-              name += zchar2str(name, modelHeaders[i].name, LEN_MODEL_NAME);
-            }
-          }
-          else {
-            additionalOnes++;
-          }
-        }
-      }
-    }
-  }
-
-  if (additionalOnes) {
-    name = strAppend(name, " (+");
-    name = strAppendUnsigned(name, additionalOnes);
-    strAppend(name, ")");
-  }
-
-  if (reusableBuffer.moduleSetup.msg[0] != '\0') {
-    POPUP_WARNING(STR_MODELIDUSED);
-    SET_WARNING_INFO(reusableBuffer.moduleSetup.msg, sizeof(reusableBuffer.moduleSetup.msg), 0);
-  }
-}
-
-uint8_t findNextUnusedModelId(uint8_t index, uint8_t module)
-{
-  // assume 63 is the highest Model ID
-  // and use 64 bits
-  uint8_t usedModelIds[8];
-  memset(usedModelIds, 0, sizeof(usedModelIds));
-
-  for (uint8_t mod_i = 0; mod_i < MAX_MODELS; mod_i++) {
-
-    if (mod_i == index)
-      continue;
-
-    uint8_t id = modelHeaders[mod_i].modelId[module];
-    if (id == 0)
-      continue;
-
-    uint8_t mask = 1;
-    for (uint8_t i = 1; i < (id & 7); i++)
-      mask <<= 1;
-
-    usedModelIds[id >> 3] |= mask;
-  }
-
-  uint8_t new_id = 1;
-  uint8_t tst_mask = 1;
-  for (;new_id < getMaxRxNum(module); new_id++) {
-    if (!(usedModelIds[new_id >> 3] & tst_mask)) {
-      // found free ID
-      return new_id;
-    }
-    if ((tst_mask <<= 1) == 0)
-      tst_mask = 1;
-  }
-
-  // failed finding something...
-  return 0;
-}
-#endif
-
-void modelDefault(uint8_t id)
-{
-  memset(&g_model, 0, sizeof(g_model));
-
-  applyDefaultTemplate();
-
-  memcpy(g_model.modelRegistrationID, g_eeGeneral.ownerRegistrationID, PXX2_LEN_REGISTRATION_ID);
-
-#if defined(LUA) && defined(PCBTARANIS) //Horus uses menuModelWizard() for wizard
-  if (isFileAvailable(WIZARD_PATH "/" WIZARD_NAME)) {
-    f_chdir(WIZARD_PATH);
-    luaExec(WIZARD_NAME);
-  }
-#endif
-
-#if defined(FRSKY_RELEASE)
-  g_model.moduleData[INTERNAL_MODULE].type = IS_PXX2_INTERNAL_ENABLED() ? MODULE_TYPE_ISRM_PXX2 : MODULE_TYPE_XJT_PXX1;
-  g_model.moduleData[INTERNAL_MODULE].channelsCount = defaultModuleChannels_M8(INTERNAL_MODULE);
-#endif
-
-#if defined(PCBXLITE)
-  g_model.trainerData.mode = TRAINER_MODE_MASTER_BLUETOOTH;
-#endif
-
-#if defined(EEPROM)
-  for (int i=0; i<NUM_MODULES; i++) {
-    modelHeaders[id].modelId[i] = g_model.header.modelId[i] = id+1;
-  }
-  checkModelIdUnique(id, 0);
-#endif
-
-#if defined(FLIGHT_MODES) && defined(GVARS)
-  for (int p=1; p<MAX_FLIGHT_MODES; p++) {
-    for (int i=0; i<MAX_GVARS; i++) {
-      g_model.flightModeData[p].gvars[i] = GVAR_MAX+1;
-    }
-  }
-#endif
-
-#if !defined(EEPROM)
-  strcpy(g_model.header.name, "Model");
-  g_model.header.name[5] = '0' + id / 10;
-  g_model.header.name[6] = '0' + id % 10;
-#endif
-
-#if defined(COLORLCD)
-  extern const LayoutFactory * defaultLayout;
-  delete customScreens[0];
-  customScreens[0] = defaultLayout->create(&g_model.screenData[0].layoutData);
-  strcpy(g_model.screenData[0].layoutName, "Layout2P1");
-//  extern const WidgetFactory * defaultWidget;
-//  customScreens[0]->createWidget(0, defaultWidget);
-  // enable switch warnings
-  for (int i = 0; i < NUM_SWITCHES; i++) {
-    g_model.switchWarningState |= (1 << (3*i));
-  }
-#endif
-}
 
 bool isInputRecursive(int index)
 {
@@ -558,6 +380,8 @@ bool isInputRecursive(int index)
 }
 
 #if defined(AUTOSOURCE)
+constexpr int MULTIPOS_STEP_SIZE = (2 * RESX) / XPOTS_MULTIPOS_COUNT;
+
 int8_t getMovedSource(GET_MOVED_SOURCE_PARAMS)
 {
   int8_t result = 0;
@@ -566,7 +390,7 @@ int8_t getMovedSource(GET_MOVED_SOURCE_PARAMS)
   static int16_t inputsStates[MAX_INPUTS];
   if (min <= MIXSRC_FIRST_INPUT) {
     for (uint8_t i=0; i<MAX_INPUTS; i++) {
-      if (abs(anas[i] - inputsStates[i]) > 512) {
+      if (abs(anas[i] - inputsStates[i]) > MULTIPOS_STEP_SIZE) {
         if (!isInputRecursive(i)) {
           result = MIXSRC_FIRST_INPUT+i;
           break;
@@ -578,7 +402,7 @@ int8_t getMovedSource(GET_MOVED_SOURCE_PARAMS)
   static int16_t sourcesStates[NUM_STICKS+NUM_POTS+NUM_SLIDERS+NUM_MOUSE_ANALOGS];
   if (result == 0) {
     for (uint8_t i=0; i<NUM_STICKS+NUM_POTS+NUM_SLIDERS; i++) {
-      if (abs(calibratedAnalogs[i] - sourcesStates[i]) > 512) {
+      if (abs(calibratedAnalogs[i] - sourcesStates[i]) > MULTIPOS_STEP_SIZE) {
         result = MIXSRC_Rud+i;
         break;
       }
@@ -709,25 +533,35 @@ void checkBacklight()
     if (inputsMoved()) {
       inactivity.counter = 0;
       if (g_eeGeneral.backlightMode & e_backlight_mode_sticks) {
-        backlightOn();
+        resetBacklightTimeout();
       }
     }
 
-    bool backlightOn = (g_eeGeneral.backlightMode == e_backlight_mode_on || (g_eeGeneral.backlightMode != e_backlight_mode_off && lightOffCounter) || isFunctionActive(FUNCTION_BACKLIGHT));
-    if (flashCounter) backlightOn = !backlightOn;
-    if (backlightOn)
+    if (requiredBacklightBright == BACKLIGHT_FORCED_ON) {
+      currentBacklightBright = g_eeGeneral.backlightBright;
       BACKLIGHT_ENABLE();
-    else
-      BACKLIGHT_DISABLE();
+    }
+    else {
+      bool backlightOn = ((g_eeGeneral.backlightMode == e_backlight_mode_on) ||
+                          (g_eeGeneral.backlightMode != e_backlight_mode_off && lightOffCounter) ||
+                          (g_eeGeneral.backlightMode == e_backlight_mode_off && isFunctionActive(FUNCTION_BACKLIGHT)));
+
+      if (flashCounter) {
+        backlightOn = !backlightOn;
+      }
+
+      if (backlightOn) {
+        currentBacklightBright = requiredBacklightBright;
+        BACKLIGHT_ENABLE();
+      }
+      else {
+        BACKLIGHT_DISABLE();
+      }
+    }
   }
 }
 
-void doLoopCommonActions()
-{
-  checkBacklight();
-}
-
-void backlightOn()
+void resetBacklightTimeout()
 {
   lightOffCounter = ((uint16_t)g_eeGeneral.lightAutoOff*250) << 1;
 }
@@ -754,7 +588,7 @@ void doSplash()
 #endif
 
   if (SPLASH_NEEDED()) {
-    backlightOn();
+    resetBacklightTimeout();
     drawSplash();
 
 #if defined(PCBSKY9X)
@@ -795,7 +629,7 @@ void doSplash()
       }
 #endif
 
-#if defined(FRSKY_RELEASE)
+#if defined(FRSKY_RELEASE) && !defined(COLORLCD)
       static uint8_t secondSplash = false;
       if (!secondSplash && get_tmr10ms() >= tgtime-200) {
         secondSplash = true;
@@ -813,7 +647,7 @@ void doSplash()
       }
 #endif
 
-      doLoopCommonActions();
+      checkBacklight();
     }
   }
 }
@@ -901,7 +735,7 @@ void checkFailsafe()
 void checkRSSIAlarmsDisabled()
 {
   if (g_model.rssiAlarms.disabled) {
-#if !defined(INTERNAL_MODULE)
+#if !defined(HARDWARE_INTERNAL_MODULE)
     if (!isModuleMultimoduleDSM2(EXTERNAL_MODULE))
 #else
     if (!isModuleMultimoduleDSM2(INTERNAL_MODULE) && !isModuleMultimoduleDSM2(EXTERNAL_MODULE))
@@ -926,7 +760,7 @@ void checkAll()
   checkFailsafe();
   checkRSSIAlarmsDisabled();
 
-#if defined(SDCARD)
+#if defined(SDCARD) && !defined(RADIOMASTER_RTF_RELEASE)
   checkSDVersion();
 #endif
 
@@ -1049,7 +883,7 @@ void checkThrottleStick()
     }
 #endif
 
-    doLoopCommonActions();
+    checkBacklight();
 
     WDG_RESET();
 
@@ -1089,7 +923,7 @@ void alert(const char * title, const char * msg , uint8_t sound)
     if (getEvent())  // wait for key release
       break;
 
-    doLoopCommonActions();
+    checkBacklight();
 
     WDG_RESET();
 
@@ -1146,7 +980,7 @@ void checkTrims()
     else {
       phase = getTrimFlightMode(mixerCurrentFlightMode, idx);
       before = getTrimValue(phase, idx);
-      thro = (idx==THR_STICK && g_model.thrTrim);
+      thro = (idx == (g_model.getThrottleStickTrimSource() - MIXSRC_FIRST_TRIM) && g_model.thrTrim);
     }
 #else
     phase = getTrimFlightMode(mixerCurrentFlightMode, idx);
@@ -1462,6 +1296,19 @@ void doMixerCalculations()
   DEBUG_TIMER_START(debugTimerEvalMixes);
   evalMixes(tick10ms);
   DEBUG_TIMER_STOP(debugTimerEvalMixes);
+}
+
+void doMixerPeriodicUpdates()
+{
+  static tmr10ms_t lastTMR = 0;
+
+  tmr10ms_t tmr10ms = get_tmr10ms();
+
+  uint8_t tick10ms = (tmr10ms >= lastTMR ? tmr10ms - lastTMR : 1);
+  // handle tick10ms overrun
+  // correct overflow handling costs a lot of code; happens only each 11 min;
+  // therefore forget the exact calculation and use only 1 instead; good compromise
+  lastTMR = tmr10ms;
 
   DEBUG_TIMER_START(debugTimerMixes10ms);
   if (tick10ms) {
@@ -1562,12 +1409,8 @@ void doMixerCalculations()
 
 #if defined(PXX) || defined(DSM2)
     static uint8_t countRangecheck = 0;
-    for (uint8_t i=0; i<NUM_MODULES; ++i) {
-#if defined(MULTIMODULE)
-      if (moduleState[i].mode >= MODULE_MODE_BEEP_FIRST || getMultiModuleStatus(i).isBinding()) {
-#else
-      if (moduleState[i].mode >= MODULE_MODE_BEEP_FIRST) {
-#endif
+    for (uint8_t i = 0; i < NUM_MODULES; ++i) {
+      if (isModuleBeeping(i)) {
         if (++countRangecheck >= 250) {
           countRangecheck = 0;
           AUDIO_PLAY(AU_SPECIAL_SOUND_CHEEP);
@@ -1578,6 +1421,7 @@ void doMixerCalculations()
 
     checkTrims();
   }
+
   DEBUG_TIMER_STOP(debugTimerMixes10ms);
 
   s_mixer_first_run_done = true;
@@ -1609,15 +1453,14 @@ void opentxStart(const uint8_t startOptions = OPENTX_START_DEFAULT_ARGS)
   }
 #endif
 
-#if defined(NIGHTLY_BUILD_WARNING)
-  ALERT(STR_NIGHTLY_WARNING, TR_NIGHTLY_NOTSAFE, AU_ERROR);
+#if defined(TEST_BUILD_WARNING)
+  ALERT(STR_TEST_WARNING, TR_TEST_NOTSAFE, AU_ERROR);
 #endif
 
 #if defined(GUI)
   if (calibration_needed) {
 #if defined(LIBOPENUI)
-    #warning "TODO add a startCalibration function"
-    // startCalibration();
+    startCalibration();
 #else
     chainMenu(menuFirstCalib);
 #endif
@@ -1634,8 +1477,9 @@ void opentxClose(uint8_t shutdown)
 {
   TRACE("opentxClose");
 
+  watchdogSuspend(2000/*20s*/);
+
   if (shutdown) {
-    watchdogSuspend(2000/*20s*/);
     pausePulses();   // stop mixer task to disable trims processing while in shutdown
     AUDIO_BYE();
     // TODO needed? telemetryEnd();
@@ -1716,28 +1560,40 @@ void opentxResume()
 
 void instantTrim()
 {
-  int16_t  anas_0[MAX_INPUTS];
+  int16_t anas_0[MAX_INPUTS];
   evalInputs(e_perout_mode_notrainer | e_perout_mode_nosticks);
   memcpy(anas_0, anas, sizeof(anas_0));
 
   evalInputs(e_perout_mode_notrainer);
 
-  for (uint8_t stick=0; stick<NUM_STICKS; stick++) {
-    if (stick!=THR_STICK) {
-      // don't instant trim the throttle stick
-      uint8_t trim_phase = getTrimFlightMode(mixerCurrentFlightMode, stick);
+  for (uint8_t stick = 0; stick < NUM_STICKS; stick++) {
+    if (stick != THR_STICK) { // don't instant trim the throttle stick
+      bool addTrim = false;
       int16_t delta = 0;
-      for (int e=0; e<MAX_EXPOS; e++) {
-        ExpoData * ed = expoAddress(e);
-        if (!EXPO_VALID(ed)) break; // end of list
-        if (ed->srcRaw-MIXSRC_Rud == stick) {
-          delta = anas[ed->chn] - anas_0[ed->chn];
-          break;
+      uint8_t trimFlightMode = getTrimFlightMode(mixerCurrentFlightMode, stick);
+      for (uint8_t i = 0; i < MAX_EXPOS; i++) {
+        ExpoData * expo = expoAddress(i);
+        if (!EXPO_VALID(expo))
+          break; // end of list
+        if (stick == expo->srcRaw - MIXSRC_FIRST_STICK) {
+          if (expo->carryTrim < 0) {
+            // only default trims will be taken into account
+            addTrim = false;
+            break;
+          }
+          auto newDelta = anas[expo->chn] - anas_0[expo->chn];
+          if (addTrim && delta != newDelta) {
+            // avoid 2 different delta values
+            addTrim = false;
+            break;
+          }
+          addTrim = true;
+          delta = newDelta;
         }
       }
-      if (abs(delta) >= INSTANT_TRIM_MARGIN) {
+      if (addTrim && abs(delta) >= INSTANT_TRIM_MARGIN) {
         int16_t trim = limit<int16_t>(TRIM_EXTENDED_MIN, (delta + trims[stick]) / 2, TRIM_EXTENDED_MAX);
-        setTrimValue(trim_phase, stick, trim);
+        setTrimValue(trimFlightMode, stick, trim);
       }
     }
   }
@@ -1778,7 +1634,8 @@ void copyTrimsToOffset(uint8_t ch)
 
   int16_t output = applyLimits(ch, chans[ch]) - zero;
   int16_t v = g_model.limitData[ch].offset;
-  if (g_model.limitData[ch].revert) output = -output;
+  if (g_model.limitData[ch].revert)
+    output = -output;
   v += (output * 125) / 128;
   g_model.limitData[ch].offset = limit((int16_t)-1000, (int16_t)v, (int16_t)1000); // make sure the offset doesn't go haywire
 
@@ -1786,6 +1643,25 @@ void copyTrimsToOffset(uint8_t ch)
   storageDirty(EE_MODEL);
 }
 
+void copyMinMaxToOutputs(uint8_t ch)
+{
+  LimitData *ld = limitAddress(ch);
+  int16_t min = ld->min;
+  int16_t max = ld->max;
+  int16_t center = ld->ppmCenter;
+
+  pauseMixerCalculations();
+
+  for (uint8_t chan = 0; chan < MAX_OUTPUT_CHANNELS; chan++) {
+    ld = limitAddress(chan);
+    ld->min = min;
+    ld->max = max;
+    ld->ppmCenter = center;
+  }
+
+  resumeMixerCalculations();
+  storageDirty(EE_MODEL);
+}
 
 #if defined(STARTUP_ANIMATION)
 
@@ -1834,23 +1710,27 @@ void moveTrimsToOffsets() // copy state of 3 primary to subtrim
   pauseMixerCalculations();
 
   evalFlightModeMixes(e_perout_mode_noinput, 0); // do output loop - zero input sticks and trims
-  for (uint8_t i=0; i<MAX_OUTPUT_CHANNELS; i++) {
+
+  for (uint8_t i = 0; i < MAX_OUTPUT_CHANNELS; i++) {
     zeros[i] = applyLimits(i, chans[i]);
   }
 
   evalFlightModeMixes(e_perout_mode_noinput-e_perout_mode_notrims, 0); // do output loop - only trims
 
-  for (uint8_t i=0; i<MAX_OUTPUT_CHANNELS; i++) {
-    int16_t output = applyLimits(i, chans[i]) - zeros[i];
+  for (uint8_t i = 0; i < MAX_OUTPUT_CHANNELS; i++) {
+    int16_t diff = applyLimits(i, chans[i]) - zeros[i];
     int16_t v = g_model.limitData[i].offset;
-    if (g_model.limitData[i].revert) output = -output;
-    v += (output * 125) / 128;
-    g_model.limitData[i].offset = limit((int16_t)-1000, (int16_t)v, (int16_t)1000); // make sure the offset doesn't go haywire
+    if (g_model.limitData[i].revert)
+      diff = -diff;
+    v += (diff * 125) / 128;
+
+    g_model.limitData[i].offset = limit((int16_t) -1000, (int16_t) v, (int16_t) 1000); // make sure the offset doesn't go haywire
   }
 
   // reset all trims, except throttle (if throttle trim)
   for (uint8_t i=0; i<NUM_TRIMS; i++) {
-    if (i != THR_STICK || !g_model.thrTrim) {
+    auto thrStick = g_model.getThrottleStickTrimSource() - MIXSRC_FIRST_TRIM;
+    if (i != thrStick || !g_model.thrTrim) {
       int16_t original_trim = getTrimValue(mixerCurrentFlightMode, i);
       for (uint8_t fm=0; fm<MAX_FLIGHT_MODES; fm++) {
         trim_t trim = getRawTrimValue(fm, i);
@@ -1874,9 +1754,9 @@ void moveTrimsToOffsets() // copy state of 3 primary to subtrim
 void opentxInit()
 {
   TRACE("opentxInit");
-
 #if defined(LIBOPENUI)
-  new ViewMain();
+  // create ViewMain
+  ViewMain::instance();
 #elif defined(GUI)
   // TODO add a function for this (duplicated)
   menuHandlers[0] = menuMainView;
@@ -1986,7 +1866,7 @@ void opentxInit()
   if (globalData.unexpectedShutdown) {
     // SDCARD not available, try to restore last model from RAM
     TRACE("rambackupRestore");
-    rambackupRestore();
+//    rambackupRestore();
   }
   else {
     storageReadAll();
@@ -2000,6 +1880,10 @@ void opentxInit()
   auxSerialInit(g_eeGeneral.auxSerialMode, modelTelemetryProtocol());
 #endif
 
+#if defined(AUX2_SERIAL)
+  aux2SerialInit(g_eeGeneral.aux2SerialMode, modelTelemetryProtocol());
+#endif
+
 #if MENUS_LOCK == 1
   getMovedSwitch();
   if (TRIMS_PRESSED() && g_eeGeneral.switchUnlockStates==switches_states) {
@@ -2008,6 +1892,7 @@ void opentxInit()
 #endif
 
   currentSpeakerVolume = requiredSpeakerVolume = g_eeGeneral.speakerVolume + VOLUME_LEVEL_DEF;
+  currentBacklightBright = requiredBacklightBright = g_eeGeneral.backlightBright;
 #if !defined(SOFTWARE_VOLUME)
   setScaledVolume(currentSpeakerVolume);
 #endif
@@ -2025,13 +1910,17 @@ void opentxInit()
   btInit();
 #endif
 
+#if defined(SPORT_UPDATE_PWR_GPIO)
+  SPORT_UPDATE_POWER_INIT();
+#endif
+
 #if defined(COLORLCD)
   loadTheme();
 #endif
 
   if (g_eeGeneral.backlightMode != e_backlight_mode_off) {
     // on Tx start turn the light on
-    backlightOn();
+    resetBacklightTimeout();
   }
 
   if (!globalData.unexpectedShutdown) {
@@ -2049,12 +1938,16 @@ void opentxInit()
   lcdSetContrast();
 #endif
 
-  backlightOn();
+  resetBacklightTimeout();
 
   startPulses();
 
   WDG_ENABLE(WDG_DURATION);
 }
+
+#if defined(SEMIHOSTING)
+extern "C" void initialise_monitor_handles();
+#endif
 
 #if defined(SIMU)
 void simuMain()
@@ -2062,6 +1955,10 @@ void simuMain()
 int main()
 #endif
 {
+#if defined(SEMIHOSTING)
+  initialise_monitor_handles();
+#endif
+
 #if defined(STM32)
   TRACE("reusableBuffer: modelSel=%d, moduleSetup=%d, calib=%d, sdManager=%d, hardwareAndSettings=%d, spectrumAnalyser=%d, usb=%d",
         sizeof(reusableBuffer.modelsel),
@@ -2077,7 +1974,7 @@ int main()
   // important to disable it before commencing with system initialisation (or
   // we could put a bunch more WDG_RESET()s in. But I don't like that approach
   // during boot up.)
-#if defined(PCBTARANIS)
+#if defined(LCD_CONTRAST_DEFAULT)
   g_eeGeneral.contrast = LCD_CONTRAST_DEFAULT;
 #endif
 
@@ -2118,6 +2015,10 @@ int main()
 
 inline uint32_t PWR_PRESS_SHUTDOWN_DELAY()
 {
+  // Instant off when both power button are pressed
+  if (pwrForcePressed())
+    return 0;
+
   return (2 - g_eeGeneral.pwrOffSpeed) * 100;
 }
 
@@ -2178,9 +2079,16 @@ uint32_t pwrCheck()
           lcdRefreshWait();
           lcdClear();
           POPUP_CONFIRMATION(STR_MODEL_SHUTDOWN, nullptr);
+#if defined(SHUTDOWN_CONFIRMATION)
+          if (TELEMETRY_STREAMING() && !g_eeGeneral.disableRssiPoweroffAlarm) {
+            SET_WARNING_INFO(STR_MODEL_STILL_POWERED, sizeof(TR_MODEL_STILL_POWERED), 0);
+          }
+#else
           SET_WARNING_INFO(STR_MODEL_STILL_POWERED, sizeof(TR_MODEL_STILL_POWERED), 0);
+#endif
           event_t evt = getEvent(false);
           DISPLAY_WARNING(evt);
+          LED_ERROR_BEGIN();
           lcdRefresh();
 
           if (warningResult) {
@@ -2190,6 +2098,7 @@ uint32_t pwrCheck()
           else if (!warningText) {
             // shutdown has been cancelled
             pwr_check_state = PWR_CHECK_PAUSED;
+            LED_ERROR_END();
             return e_power_on;
           }
 #endif
@@ -2207,7 +2116,7 @@ uint32_t pwrCheck()
   else {
 #if defined(COLORLCD)
     if (pwr_press_time != 0)
-      mainWindow.invalidate();
+      MainWindow::instance()->invalidate();
 #endif
     pwr_check_state = PWR_CHECK_ON;
     pwr_press_time = 0;

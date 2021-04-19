@@ -19,14 +19,18 @@
  */
 
 #include "opentx.h"
+#include "sliders.h"
+#include "trims.h"
+
+constexpr coord_t border = 10;
 
 const uint8_t LBM_LAYOUT_2x1[] = {
 #include "mask_layout2x1.lbm"
 };
 
-const ZoneOption OPTIONS_LAYOUT_2x1[] = {
-  { "Top bar", ZoneOption::Bool },
-  { NULL, ZoneOption::Bool }
+const ZoneOption OPTIONS_LAYOUT_2x1[] =  {
+  LAYOUT_COMMON_OPTIONS,
+  LAYOUT_OPTIONS_END
 };
 
 class Layout2x1: public Layout
@@ -37,45 +41,24 @@ class Layout2x1: public Layout
     {
     }
 
-    void create() override
-    {
-      Layout::create();
-      persistentData->options[0] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
-    }
-
     unsigned int getZonesCount() const override
     {
-      return 4;
+      return 2;
     }
 
-    Zone getZone(unsigned int index) const override
+    rect_t getZone(unsigned int index) const override
     {
-      Zone zone;
-      zone.w = (LCD_W-3*10) / 2;
-      zone.x = (index & 1) ? 20 + zone.w : 10;
-      if (persistentData->options[0].value.boolValue) {
-        zone.h = (LCD_H-MENU_HEADER_HEIGHT-2*10);
-        zone.y = MENU_HEADER_HEIGHT + 10;
+      rect_t zone = getMainZone({border, border, LCD_W - 2 * border, LCD_H - 2 * border});
+
+      if (index == 0) {
+        return {isMirrored() ? zone.x + zone.w / 2 : zone.x, zone.y, zone.w / 2, zone.h};
       }
       else {
-        zone.h = (LCD_H-2*10);
-        zone.y = 10;
+        return {isMirrored() ? zone.x : zone.x + zone.w / 2, zone.y, zone.w / 2, zone.h};
       }
+
       return zone;
     }
-
-//    virtual void refresh();
 };
-
-//void Layout2x1::refresh()
-//{
-//  theme->drawBackground();
-//
-//  if (persistentData->options[0].value.boolValue) {
-//    drawTopBar();
-//  }
-//
-//  Layout::refresh();
-//}
 
 BaseLayoutFactory<Layout2x1> Layout2x1("Layout2x1", "2 x 1", LBM_LAYOUT_2x1, OPTIONS_LAYOUT_2x1);

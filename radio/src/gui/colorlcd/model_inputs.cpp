@@ -90,7 +90,8 @@ void deleteExpo(uint8_t idx)
   storageDirty(EE_MODEL);
 }
 
-class InputEditWindow: public Page {
+class InputEditWindow: public Page
+{
   public:
     InputEditWindow(int8_t input, uint8_t index):
       Page(ICON_MODEL_INPUTS),
@@ -116,9 +117,14 @@ class InputEditWindow: public Page {
       buildHeader(&header);
     }
 
-    ~InputEditWindow() override
+    void deleteLater(bool detach = true, bool trash = true) override
     {
-      preview.detach();
+      if (_deleted)
+        return;
+
+      preview.deleteLater(true, false);
+
+      Page::deleteLater(detach, trash);
     }
 
   protected:
@@ -156,7 +162,7 @@ class InputEditWindow: public Page {
 
         case CURVE_REF_CUSTOM:
         {
-          auto choice = new Choice(curveParamField, rect, nullptr, -MAX_CURVES, MAX_CURVES, GET_SET_DEFAULT(line->curve.value));
+          auto choice = new Choice(curveParamField, rect, -MAX_CURVES, MAX_CURVES, GET_SET_DEFAULT(line->curve.value));
           choice->setTextHandler([](int value) {
               return getCurveString(value);
           });
@@ -272,12 +278,12 @@ class InputEditWindow: public Page {
         if (i > 0 && (i % 4) == 0)
           grid.nextLine();
         new TextButton(window, grid.getFieldSlot(4, i % 4), fm,
-                                    [=]() -> uint8_t {
-                                        BFBIT_FLIP(line->flightModes, bfBit<uint32_t>(i));
-                                        SET_DIRTY();
-                                        return !(bfSingleBitGet(line->flightModes, i));
-                                    },
-                                    bfSingleBitGet(line->flightModes, i) ? 0 : BUTTON_CHECKED);
+                       [=]() -> uint8_t {
+                           BFBIT_FLIP(line->flightModes, bfBit<uint32_t>(i));
+                           SET_DIRTY();
+                           return !(bfSingleBitGet(line->flightModes, i));
+                       },
+                       OPAQUE | (bfSingleBitGet(line->flightModes, i) ? 0 : BUTTON_CHECKED));
       }
       grid.nextLine();
 
@@ -332,7 +338,7 @@ class InputLineButton : public CommonInputOrMixButton {
       }
     }
 
-    bool isActive() override
+    bool isActive() const override
     {
       return isExpoActive(index);
     }
@@ -382,6 +388,7 @@ void ModelInputsPage::rebuild(FormWindow * window, int8_t focusIndex)
 
 void ModelInputsPage::editInput(FormWindow * window, uint8_t input, uint8_t index)
 {
+  Window::clearFocus();
   Window * editWindow = new InputEditWindow(input, index);
   editWindow->setCloseHandler([=]() {
     rebuild(window, index);
@@ -394,8 +401,6 @@ void ModelInputsPage::build(FormWindow * window, int8_t focusIndex)
   grid.spacer(PAGE_PADDING);
   grid.setLabelWidth(66);
 
-  Window::clearFocus();
-
   int inputIndex = 0;
   ExpoData * line = g_model.expoData;
   for (uint8_t input = 0; input < MAX_INPUTS; input++) {
@@ -404,10 +409,10 @@ void ModelInputsPage::build(FormWindow * window, int8_t focusIndex)
       while (inputIndex < MAX_EXPOS && line->chn == input && EXPO_VALID(line)) {
         Button * button = new InputLineButton(window, grid.getFieldSlot(), inputIndex);
         if (focusIndex == inputIndex)
-          button->setFocus();
+          button->setFocus(SET_FOCUS_DEFAULT);
         button->setPressHandler([=]() -> uint8_t {
           button->bringToTop();
-          Menu * menu = new Menu();
+          Menu * menu = new Menu(window);
           menu->addLine(STR_EDIT, [=]() {
             editInput(window, input, inputIndex);
           });
@@ -465,10 +470,10 @@ void ModelInputsPage::build(FormWindow * window, int8_t focusIndex)
     else {
       auto button = new TextButton(window, grid.getLabelSlot(), getSourceString(MIXSRC_FIRST_INPUT + input));
       if (focusIndex == inputIndex)
-        button->setFocus();
+        button->setFocus(SET_FOCUS_DEFAULT);
       button->setPressHandler([=]() -> uint8_t {
         button->bringToTop();
-        Menu * menu = new Menu();
+        Menu * menu = new Menu(window);
         menu->addLine(STR_EDIT, [=]() {
           insertExpo(inputIndex, input);
           editInput(window, input, inputIndex);

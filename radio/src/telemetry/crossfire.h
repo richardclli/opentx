@@ -40,7 +40,12 @@
 #define PING_DEVICES_ID                0x28
 #define DEVICE_INFO_ID                 0x29
 #define REQUEST_SETTINGS_ID            0x2A
+#define COMMAND_ID                     0x32
+#define RADIO_ID                       0x3A
 
+#define UART_SYNC                      0xC8
+#define SUBCOMMAND_CRSF                0x10
+#define COMMAND_MODEL_SELECT_ID        0x05
 
 struct CrossfireSensor {
   const uint8_t id;
@@ -64,6 +69,7 @@ enum CrossfireSensorIndexes {
   BATT_VOLTAGE_INDEX,
   BATT_CURRENT_INDEX,
   BATT_CAPACITY_INDEX,
+  BATT_REMAINING_INDEX,
   GPS_LATITUDE_INDEX,
   GPS_LONGITUDE_INDEX,
   GPS_GROUND_SPEED_INDEX,
@@ -78,10 +84,16 @@ enum CrossfireSensorIndexes {
   UNKNOWN_INDEX,
 };
 
+enum CrossfireFrames{
+  CRSF_FRAME_CHANNEL,
+  CRSF_FRAME_MODELID,
+  CRSF_FRAME_MODELID_SENT
+};
+
 void processCrossfireTelemetryData(uint8_t data);
 void crossfireSetDefault(int index, uint8_t id, uint8_t subId);
+uint8_t createCrossfireModelIDFrame(uint8_t * frame);
 
-#if SPORT_MAX_BAUDRATE < 400000
 const uint32_t CROSSFIRE_BAUDRATES[] = {
   400000,
   115200,
@@ -90,11 +102,12 @@ const uint8_t CROSSFIRE_FRAME_PERIODS[] = {
   4,
   16,
 };
-#define CROSSFIRE_BAUDRATE       CROSSFIRE_BAUDRATES[g_eeGeneral.telemetryBaudrate]
-#define CROSSFIRE_PERIOD         CROSSFIRE_FRAME_PERIODS[g_eeGeneral.telemetryBaudrate]
+#if SPORT_MAX_BAUDRATE < 400000 || defined(DEBUG)
+#define CROSSFIRE_BAUDRATE    CROSSFIRE_BAUDRATES[g_eeGeneral.telemetryBaudrate]
+#define CROSSFIRE_PERIOD      (CROSSFIRE_FRAME_PERIODS[g_eeGeneral.telemetryBaudrate] * 1000)
 #else
 #define CROSSFIRE_BAUDRATE       400000
-#define CROSSFIRE_PERIOD         4 // 4ms
+#define CROSSFIRE_PERIOD         4000 /* us; 250 Hz */
 #endif
 
 #define CROSSFIRE_TELEM_MIRROR_BAUDRATE   115200

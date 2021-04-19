@@ -343,7 +343,7 @@ void evalFunctions(const CustomFunctionData * functions, CustomFunctionsContext 
 
 #if defined(VARIO)
           case FUNC_VARIO:
-            newActiveFunctions |= (1 << FUNCTION_VARIO);
+            newActiveFunctions |= (1u << FUNCTION_VARIO);
             break;
 #endif
 
@@ -351,15 +351,31 @@ void evalFunctions(const CustomFunctionData * functions, CustomFunctionsContext 
 #if defined(SDCARD)
           case FUNC_LOGS:
             if (CFN_PARAM(cfn)) {
-              newActiveFunctions |= (1 << FUNCTION_LOGS);
+              newActiveFunctions |= (1u << FUNCTION_LOGS);
               logDelay = CFN_PARAM(cfn);
             }
             break;
 #endif
 
           case FUNC_BACKLIGHT:
-            newActiveFunctions |= (1 << FUNCTION_BACKLIGHT);
+          {
+            newActiveFunctions |= (1u << FUNCTION_BACKLIGHT);
+            if (!CFN_PARAM(cfn)) {  // When no source is set, backlight works like original backlight and turn on regardless of backlight settings
+              requiredBacklightBright = BACKLIGHT_FORCED_ON;
+              break;
+            }
+
+            getvalue_t raw = getValue(CFN_PARAM(cfn));
+#if defined(COLORLCD)
+            if (raw == -1024)
+              requiredBacklightBright = 100;
+            else
+              requiredBacklightBright = (1024 - raw) * (BACKLIGHT_LEVEL_MAX - BACKLIGHT_LEVEL_MIN) / 2048;
+#else
+            requiredBacklightBright = (1024 - raw) * 100 / 2048;
+#endif
             break;
+          }
 
           case FUNC_SCREENSHOT:
             if (!(functionsContext.activeSwitches & switch_mask)) {
