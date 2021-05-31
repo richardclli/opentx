@@ -25,6 +25,8 @@
 #include "audio_driver.h"
 #endif
 
+extern uint16_t get_flysky_hall_adc_value(uint8_t ch);
+
 RadioData  g_eeGeneral;
 ModelData  g_model;
 
@@ -1244,7 +1246,17 @@ void getADC()
   DEBUG_TIMER_STOP(debugTimerAdcRead);
 
   for (uint8_t x=0; x<NUM_ANALOGS; x++) {
-    uint16_t v = getAnalogValue(x) >> (1 - ANALOG_SCALE);
+    uint16_t v;
+
+#if defined(FLYSKY_HALL_STICKS)
+    if (x < 4)
+      v = get_flysky_hall_adc_value(x) >> (1 - ANALOG_SCALE);
+    else
+      v = getAnalogValue(x) >> (1 - ANALOG_SCALE);
+#else
+    v = getAnalogValue(x) >> (1 - ANALOG_SCALE);
+#endif
+    
 
     // Jitter filter:
     //    * pass trough any big change directly

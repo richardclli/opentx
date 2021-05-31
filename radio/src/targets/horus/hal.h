@@ -402,7 +402,7 @@
 #endif
 
 // Serial Port (DEBUG)
-#if (defined(PCBX12S) || (defined(RADIO_TX16S)) && !defined(HARDWARE_EXTERNAL_ACCESS_MOD))
+#if (defined(PCBX12S) || (defined(RADIO_TX16S)) && !defined(HARDWARE_EXTERNAL_ACCESS_MOD) && !defined(FLYSKY_HALL_STICKS))
   #define AUX_SERIAL_RCC_AHB1Periph           (RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOB | RCC_AHB1Periph_DMA1)
   #define AUX_SERIAL_RCC_APB1Periph           RCC_APB1Periph_USART3
   #define AUX_SERIAL_RCC_APB2Periph           0
@@ -735,6 +735,35 @@
   #define HAPTIC_TIMER_OUTPUT_ENABLE    TIM_CCER_CC2E
   #define HAPTIC_TIMER_MODE             TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2
   #define HAPTIC_TIMER_COMPARE_VALUE    HAPTIC_GPIO_TIMER->CCR2
+#endif
+
+// Flysky Hall Stick
+#if defined(FLYSKY_HALL_STICKS)
+  #if defined (RADIO_TX16S)
+    #define FLYSKY_HALL_STICKS_REVERSE
+  #endif
+  #define FLYSKY_HALL_SERIAL_USART                 USART3
+  #define FLYSKY_HALL_SERIAL_GPIO                  GPIOB
+  #define FLYSKY_HALL_DMA_Channel                  DMA_Channel_4
+  #define FLYSKY_HALL_SERIAL_TX_GPIO_PIN           GPIO_Pin_10 // PB.10
+  #define FLYSKY_HALL_SERIAL_RX_GPIO_PIN           GPIO_Pin_11 // PB.11
+  #define FLYSKY_HALL_SERIAL_TX_GPIO_PinSource     GPIO_PinSource10
+  #define FLYSKY_HALL_SERIAL_RX_GPIO_PinSource     GPIO_PinSource11
+  #define FLYSKY_HALL_SERIAL_GPIO_AF               GPIO_AF_USART3
+
+  #define FLYSKY_HALL_RCC_AHB1Periph               RCC_AHB1Periph_DMA1
+  #define FLYSKY_HALL_RCC_APB1Periph               RCC_APB1Periph_USART3
+
+  #define FLYSKY_HALL_SERIAL_USART_IRQHandler      USART3_IRQHandler
+  #define FLYSKY_HALL_SERIAL_USART_IRQn            USART3_IRQn
+  #define FLYSKY_HALL_SERIAL_RX_DMA_Stream_IRQn    DMA1_Stream1_IRQn
+  #define FLYSKY_HALL_SERIAL_TX_DMA_Stream_IRQn    DMA1_Stream3_IRQn
+  #define FLYSKY_HALL_DMA_Stream_RX                DMA1_Stream1
+  #define FLYSKY_HALL_DMA_Stream_TX                DMA1_Stream3
+  #define FLYSKY_HALL_DMA_TX_FLAG_TC               DMA_IT_TCIF3
+
+  #define FLYSKY_HALL_RX_DMA_Stream_IRQHandler     DMA1_Stream1_IRQHandler
+  #define FLYSKY_HALL_TX_DMA_Stream_IRQHandler     DMA1_Stream3_IRQHandler
 #endif
 
 #if !defined(RADIO_FAMILY_T16)
