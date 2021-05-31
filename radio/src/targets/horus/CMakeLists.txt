@@ -1,5 +1,6 @@
 option(DISK_CACHE "Enable SD card disk cache" ON)
 option(UNEXPECTED_SHUTDOWN "Enable the Unexpected Shutdown screen" ON)
+option(FLYSKY_HALL_STICKS "Enable FlySky Hall Sticks" OFF)
 option(PXX1 "PXX1 protocol support" ON)
 option(PXX2 "PXX2 protocol support" OFF)
 option(AFHDS3 "AFHDS3 TX Module" ON)
@@ -154,6 +155,11 @@ if(HARDWARE_EXTERNAL_ACCESS_MOD)
   add_definitions(-DHARDWARE_EXTERNAL_ACCESS_MOD)
 endif()
 
+if(FLYSKY_HALL_STICKS)
+  set(AUX_SERIAL OFF)
+  add_definitions(-DFLYSKY_HALL_STICKS)
+endif()
+
 if(INTERNAL_MODULE_PXX1)
   add_definitions(-DHARDWARE_INTERNAL_MODULE)
   add_definitions(-DINTERNAL_MODULE_PXX1)
@@ -301,6 +307,12 @@ set(FIRMWARE_TARGET_SRC
   ../common/arm/stm32/sdio_sd.c
   ../common/arm/loadboot.cpp
   )
+
+set(FIRMWARE_TARGET_SRC
+  ${FIRMWARE_TARGET_SRC}
+  flyskyHallStick_driver.cpp
+  )
+
 
 set(SRC
   ${SRC}
