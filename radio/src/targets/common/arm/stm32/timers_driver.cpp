@@ -34,7 +34,7 @@ void init2MhzTimer()
 // Start TIMER at 200Hz
 void init5msTimer()
 {
-  INTERRUPT_xMS_TIMER->ARR = 4999; // 5mS in uS
+  INTERRUPT_xMS_TIMER->ARR = 999; // 5mS in uS
   INTERRUPT_xMS_TIMER->PSC = (PERI1_FREQUENCY * TIMER_MULT_APB1) / 1000000 - 1;  // 1uS
   INTERRUPT_xMS_TIMER->CCER = 0;
   INTERRUPT_xMS_TIMER->CCMR1 = 0;
@@ -58,18 +58,22 @@ void interrupt5ms()
 
   ++pre_scale;
 
-#if defined(HAPTIC)
-  DEBUG_TIMER_START(debugTimerHaptic);
-  HAPTIC_HEARTBEAT();
-  DEBUG_TIMER_STOP(debugTimerHaptic);
-#endif
-
 #if defined(FLYSKY_HALL_STICKS)
   flysky_hall_stick_loop();
 #endif
 
-  if (pre_scale == 2) {
+  if (pre_scale == 10)
+  {
     pre_scale = 0;
+    if (pre_scale == 0 || pre_scale == 5)
+    {
+#if defined(HAPTIC)
+      DEBUG_TIMER_START(debugTimerHaptic);
+      HAPTIC_HEARTBEAT();
+      DEBUG_TIMER_STOP(debugTimerHaptic);
+#endif
+    }
+        
     DEBUG_TIMER_START(debugTimerPer10ms);
     DEBUG_TIMER_SAMPLE(debugTimerPer10msPeriod);
     per10ms();
