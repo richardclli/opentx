@@ -154,7 +154,10 @@ if(HARDWARE_EXTERNAL_ACCESS_MOD)
 endif()
 
 if(FLYSKY_HALL_STICKS)
-  set(AUX_SERIAL OFF)
+  set(FIRMWARE_TARGET_SRC
+    ${FIRMWARE_TARGET_SRC}
+    flyskyHallStick_driver.cpp
+  )
   add_definitions(-DFLYSKY_HALL_STICKS)
 endif()
 
@@ -300,12 +303,6 @@ set(FIRMWARE_TARGET_SRC
   ../common/arm/stm32/sdio_sd.c
   ../common/arm/loadboot.cpp
   )
-
-set(FIRMWARE_TARGET_SRC
-  ${FIRMWARE_TARGET_SRC}
-  flyskyHallStick_driver.cpp
-  )
-
 
 set(SRC
   ${SRC}
